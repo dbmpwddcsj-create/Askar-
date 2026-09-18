@@ -1,0 +1,2242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bin — Trading Platform</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#7B3FE4',
+                        dark: '#1A1A22',
+                        profit: '#28A745',
+                        danger: '#FF5722'
+                    }
+                }
+            }
+        };
+    </script>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            font-family: Inter, Arial, sans-serif;
+            background: #1A1A22;
+        }
+
+        button,
+        input {
+            font-family: inherit;
+        }
+
+        .gradient {
+            background: linear-gradient(135deg, #7B3FE4, #4D1C98);
+        }
+
+        .gradient-light {
+            background: linear-gradient(135deg, #8A2BE2, #7B3FE4);
+        }
+
+        .glass {
+            background: rgba(255,255,255,.05);
+            backdrop-filter: blur(14px);
+        }
+
+        .chart-grid {
+            background-image:
+                linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+            background-size: 42px 42px;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .phone-shadow {
+            box-shadow:
+                0 30px 80px rgba(123,63,228,.25),
+                0 10px 30px rgba(0,0,0,.15);
+        }
+
+        .card-shadow {
+            box-shadow: 0 15px 40px rgba(0,0,0,.15);
+        }
+
+        .btn-shadow:hover {
+            box-shadow: 0 8px 25px rgba(123,63,228,.3);
+        }
+
+        .fade-in {
+            animation: fadeIn .35s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+const { useState, useEffect } = React;
+
+
+/* =====================================
+   ICON COMPONENT
+===================================== */
+
+function Icon({ name, size = 20, className = "" }) {
+    useEffect(() => {
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    });
+
+    return (
+        <i
+            data-lucide={name}
+            className={className}
+            style={{ width: size, height: size }}
+        ></i>
+    );
+}
+
+
+/* =====================================
+   BUTTON
+===================================== */
+
+function Button({
+    children,
+    onClick,
+    variant = "primary",
+    icon,
+    className = "",
+    disabled = false
+}) {
+
+    const styles = {
+        primary: "bg-primary hover:bg-purple-700 text-white",
+        green: "bg-profit hover:bg-green-600 text-white",
+        danger: "bg-danger hover:bg-red-600 text-white",
+        outline: "border border-primary text-primary hover:bg-primary hover:text-white",
+        blue: "bg-blue-600 hover:bg-blue-700 text-white",
+        ghost: "bg-white/5 hover:bg-white/10 text-gray-300",
+        white: "bg-white text-gray-900 hover:bg-gray-100"
+    };
+
+    return (
+        <button
+            disabled={disabled}
+            onClick={onClick}
+            className={`
+                rounded-xl px-5 py-3 font-medium
+                transition-all duration-200
+                flex items-center justify-center gap-2
+                btn-shadow
+                ${styles[variant]}
+                ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+                ${className}
+            `}
+        >
+            {icon && <Icon name={icon} size={18}/>}
+            {children}
+        </button>
+    );
+}
+
+
+/* =====================================
+   INPUT
+===================================== */
+
+function Input({
+    label,
+    placeholder,
+    type = "text",
+    dark = false,
+    icon
+}) {
+    return (
+        <div className="space-y-2">
+            {label && (
+                <label className={`${dark ? "text-gray-500" : "text-gray-500"} text-sm`}>
+                    {label}
+                </label>
+            )}
+
+            <div className="relative">
+                {icon && (
+                    <Icon
+                        name={icon}
+                        size={18}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                )}
+
+                <input
+                    type={type}
+                    placeholder={placeholder}
+                    className={`
+                        w-full rounded-xl px-4 py-3 outline-none transition
+                        ${icon ? "pl-11" : ""}
+                        ${
+                            dark
+                            ? "bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:border-primary"
+                            : "bg-white border border-gray-200 text-gray-900 focus:border-primary"
+                        }
+                    `}
+                />
+            </div>
+        </div>
+    );
+}
+
+
+/* =====================================
+   CARD
+===================================== */
+
+function Card({ children, className = "" }) {
+    return (
+        <div className={`rounded-2xl ${className}`}>
+            {children}
+        </div>
+    );
+}
+
+
+/* =====================================
+   FOOTER
+===================================== */
+
+function Footer({ dark = false }) {
+    return (
+        <footer
+            className={`
+                ${
+                    dark
+                    ? "bg-dark text-gray-500 border-white/5"
+                    : "bg-white text-gray-500 border-gray-100"
+                }
+                border-t text-center py-6 text-sm
+            `}
+        >
+            Все права защищены 2026. Bin
+        </footer>
+    );
+}
+
+
+/* =====================================
+   RISK WARNING
+===================================== */
+
+function RiskWarning() {
+    return (
+        <div className="text-xs leading-5 text-gray-500 mt-10 border-t border-white/10 pt-6">
+
+            <strong className="text-gray-400 block mb-2">
+                Предупреждение о рисках
+            </strong>
+
+            Торговые операции, осуществляемые на платформе, сопряжены с существенным риском потери капитала. Пожалуйста, внимательно ознакомьтесь с общими условиями торговли, представленными на нашем сайте, перед осуществлением любых инвестиций. Вам предоставляется право личного, некоммерческого использования информационной системы, размещенной на данном сайте. Право использования является ограниченным и неисключительным. Деятельность компании ведется за пределами Российской Федерации.
+
+        </div>
+    );
+}
+
+
+/* =====================================
+   MINI CHART
+===================================== */
+
+function MiniChart({ green = false }) {
+
+    return (
+        <svg
+            viewBox="0 0 300 100"
+            className="w-full h-24"
+            preserveAspectRatio="none"
+        >
+            <defs>
+                <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor={green ? "#28A745" : "#7B3FE4"} stopOpacity=".35"/>
+                    <stop offset="100%" stopColor={green ? "#28A745" : "#7B3FE4"} stopOpacity="0"/>
+                </linearGradient>
+            </defs>
+
+            <polygon
+                fill="url(#chartGradient)"
+                points="0,80 25,65 45,72 65,40 85,52 110,28 135,44 160,20 180,35 205,15 230,28 250,8 275,18 300,5 300,100 0,100"
+            />
+
+            <polyline
+                fill="none"
+                stroke={green ? "#28A745" : "#7B3FE4"}
+                strokeWidth="3"
+                points="0,80 25,65 45,72 65,40 85,52 110,28 135,44 160,20 180,35 205,15 230,28 250,8 275,18 300,5"
+            />
+        </svg>
+    );
+}
+
+
+/* =====================================
+   CANDLESTICK CHART
+===================================== */
+
+function CandlestickChart() {
+
+    const candles = [
+        [20,100,70,45,true],
+        [45,90,60,25,false],
+        [70,80,50,20,true],
+        [95,95,60,35,true],
+        [120,70,40,10,false],
+        [145,75,45,25,true],
+        [170,55,30,5,true],
+        [195,65,40,15,false],
+        [220,50,25,0,true],
+        [245,45,20,5,true],
+        [270,35,15,0,false],
+        [295,30,10,0,true],
+        [320,40,20,5,false],
+        [345,25,5,0,true]
+    ];
+
+    return (
+        <div className="h-80 md:h-96 chart-grid rounded-2xl relative overflow-hidden p-4">
+
+            <svg
+                viewBox="0 0 370 180"
+                preserveAspectRatio="none"
+                className="w-full h-full"
+            >
+
+                <line x1="0" y1="45" x2="370" y2="45" stroke="#ffffff12"/>
+                <line x1="0" y1="90" x2="370" y2="90" stroke="#ffffff12"/>
+                <line x1="0" y1="135" x2="370" y2="135" stroke="#ffffff12"/>
+
+                {candles.map((c, i) => {
+
+                    const x = c[0];
+                    const high = c[1];
+                    const low = c[2];
+                    const green = c[4];
+
+                    const open = c[3];
+                    const close = green ? c[2] - 15 : c[2] + 15;
+
+                    return (
+                        <g key={i}>
+
+                            <line
+                                x1={x}
+                                y1={high}
+                                x2={x}
+                                y2={low}
+                                stroke={green ? "#28A745" : "#FF5722"}
+                                strokeWidth="1.5"
+                            />
+
+                            <rect
+                                x={x - 5}
+                                y={Math.min(open, close)}
+                                width="10"
+                                height={Math.max(8, Math.abs(open - close))}
+                                fill={green ? "#28A745" : "#FF5722"}
+                                rx="1"
+                            />
+
+                        </g>
+                    );
+                })}
+
+                <polyline
+                    fill="none"
+                    stroke="#28A745"
+                    strokeWidth="1.5"
+                    strokeDasharray="4 4"
+                    points="0,65 370,65"
+                />
+
+            </svg>
+
+            <div className="absolute right-3 top-[35%] bg-profit text-white text-xs px-3 py-1 rounded">
+                98 240,50
+            </div>
+
+            <div className="absolute bottom-3 left-4 text-xs text-gray-500">
+                23:15
+            </div>
+
+            <div className="absolute bottom-3 right-4 text-xs text-gray-500">
+                23:30
+            </div>
+
+        </div>
+    );
+}
+
+
+/* =====================================
+   TOP BAR
+===================================== */
+
+function TopBar({ onNavigate }) {
+
+    return (
+        <header className="h-16 border-b border-white/10 bg-[#1A1A22]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-8 sticky top-0 z-30">
+
+            <button
+                onClick={() => onNavigate("dashboard")}
+                className="text-2xl font-bold text-white tracking-tight"
+            >
+                <span className="text-primary">B</span>in
+            </button>
+
+            <div className="flex items-center gap-3">
+
+                <button className="relative w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition">
+
+                    <Icon name="bell" size={20} className="text-gray-400"/>
+
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></span>
+
+                </button>
+
+                <div className="hidden sm:block text-right">
+                    <div className="text-xs text-gray-500">
+                        Баланс
+                    </div>
+
+                    <div className="font-semibold text-white">
+                        0 ₽
+                    </div>
+                </div>
+
+                <Button
+                    onClick={() => onNavigate("trade")}
+                    icon="trending-up"
+                    className="py-2 px-4"
+                >
+                    Торговать
+                </Button>
+
+            </div>
+
+        </header>
+    );
+}
+
+
+/* =====================================
+   BOTTOM NAVIGATION
+===================================== */
+
+function TabBar({ onNavigate, active }) {
+
+    const items = [
+        { id: "profile", icon: "user-round", label: "Профиль" },
+        { id: "support", icon: "headphones", label: "Поддержка" },
+        { id: "history", icon: "history", label: "История" }
+    ];
+
+    return (
+        <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1A22]/95 backdrop-blur-xl border-t border-white/10 z-40">
+
+            <div className="max-w-4xl mx-auto flex justify-around py-3">
+
+                {items.map(item => (
+
+                    <button
+                        key={item.id}
+                        onClick={() => onNavigate(item.id)}
+                        className={`
+                            flex flex-col items-center gap-1.5 text-xs transition-all duration-200
+                            ${
+                                active === item.id
+                                ? "text-primary"
+                                : "text-gray-500 hover:text-white"
+                            }
+                        `}
+                    >
+
+                        <div className={`p-2 rounded-xl ${
+                            active === item.id ? "bg-primary/15" : ""
+                        }`}>
+                            <Icon name={item.icon} size={20}/>
+                        </div>
+
+                        {item.label}
+
+                    </button>
+
+                ))}
+
+            </div>
+
+        </nav>
+    );
+}
+
+
+/* =====================================
+   DARK LAYOUT
+===================================== */
+
+function DarkLayout({ children, active, onNavigate }) {
+
+    return (
+        <div className="min-h-screen bg-dark text-white pb-20">
+
+            <TopBar onNavigate={onNavigate}/>
+
+            {children}
+
+            <TabBar active={active} onNavigate={onNavigate}/>
+
+        </div>
+    );
+}
+
+
+/* =====================================
+   LANDING
+===================================== */
+
+function Landing({ onNavigate }) {
+
+    return (
+        <div className="min-h-screen bg-white text-gray-900">
+
+            <header className="flex items-center justify-between px-6 md:px-12 py-5 border-b border-gray-100">
+
+                <div className="text-2xl font-bold">
+                    <span className="text-primary">B</span>in
+                </div>
+
+                <Button
+                    onClick={() => onNavigate("auth")}
+                    className="px-6 py-2"
+                >
+                    Войти
+                </Button>
+
+            </header>
+
+
+            <main className="max-w-6xl mx-auto px-6 py-12 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+
+                <div>
+
+                    <div className="inline-flex items-center gap-2 bg-purple-50 text-primary px-4 py-2 rounded-full text-sm mb-6">
+                        <Icon name="sparkles" size={16}/>
+                        Современная торговая платформа
+                    </div>
+
+                    <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
+                        Платформа для понятных и разумных инвестиций
+                    </h1>
+
+                    <p className="text-lg text-gray-500 mb-8">
+                        Регистрируйся и используй возможности платформы
+                    </p>
+
+                    <Button
+                        onClick={() => onNavigate("auth")}
+                        icon="arrow-right"
+                        className="px-8"
+                    >
+                        Начать работу
+                    </Button>
+
+                    <div className="flex gap-6 mt-8 text-sm text-gray-400">
+                        <span className="flex items-center gap-2">
+                            <Icon name="shield-check" size={16}/>
+                            Удобный интерфейс
+                        </span>
+
+                        <span className="flex items-center gap-2">
+                            <Icon name="layout-dashboard" size={16}/>
+                            Единая платформа
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <div className="relative flex justify-center">
+
+                    <div className="absolute inset-0 bg-purple-100 blur-3xl rounded-full opacity-60"></div>
+
+                    <div className="relative w-64 md:w-72 h-[510px] bg-gray-950 rounded-[42px] border-8 border-gray-200 phone-shadow p-4">
+
+                        <div className="w-24 h-5 bg-gray-900 rounded-full absolute top-2 left-1/2 -translate-x-1/2"></div>
+
+                        <div className="text-white text-sm flex justify-between mt-5 mb-8">
+                            <span>9:41</span>
+                            <span>● ● ●</span>
+                        </div>
+
+                        <div className="text-white text-center mb-6">
+                            <div className="text-xs text-gray-500">
+                                Ваш баланс
+                            </div>
+
+                            <div className="text-2xl font-bold mt-1">
+                                0 ₽
+                            </div>
+                        </div>
+
+
+                        <div className="bg-gray-900 rounded-2xl p-4 border border-white/5">
+
+                            <div className="flex justify-between items-center mb-2">
+                                <div>
+                                    <div className="text-gray-500 text-xs">
+                                        BTC / USDT
+                                    </div>
+
+                                    <div className="text-white font-bold">
+                                        98 240,50
+                                    </div>
+                                </div>
+
+                                <span className="text-profit text-xs">
+                                    +2.45%
+                                </span>
+                            </div>
+
+                            <MiniChart green/>
+
+                        </div>
+
+
+                        <div className="mt-5 grid grid-cols-2 gap-2">
+
+                            <div className="bg-profit/15 text-profit text-xs p-3 rounded-xl text-center">
+                                ↑ Вверх
+                            </div>
+
+                            <div className="bg-danger/15 text-danger text-xs p-3 rounded-xl text-center">
+                                ↓ Вниз
+                            </div>
+
+                        </div>
+
+                        <div className="mt-6 bg-white/5 rounded-xl p-3 text-xs text-gray-400 flex items-center gap-2">
+                            <Icon name="shield-check" size={15} className="text-profit"/>
+                            Защищенная платформа
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </main>
+
+
+            <section className="max-w-6xl mx-auto px-6 pb-16 grid md:grid-cols-3 gap-5">
+
+                {[
+                    ["trending-up", "Интуитивная торговля", "Понятный интерфейс для работы с активами."],
+                    ["wallet", "Управление балансом", "Пополнение и вывод средств в одном месте."],
+                    ["headphones", "Поддержка", "Свяжитесь с технической поддержкой при необходимости."]
+                ].map(item => (
+
+                    <Card key={item[1]} className="border border-gray-100 p-6 bg-white">
+
+                        <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center mb-4">
+                            <Icon name={item[0]} size={23} className="text-primary"/>
+                        </div>
+
+                        <h3 className="font-semibold text-lg mb-2">
+                            {item[1]}
+                        </h3>
+
+                        <p className="text-gray-500 text-sm leading-6">
+                            {item[2]}
+                        </p>
+
+                    </Card>
+
+                ))}
+
+            </section>
+
+
+            <Footer/>
+
+        </div>
+    );
+}
+
+
+/* =====================================
+   AUTH
+===================================== */
+
+function Auth({ onNavigate }) {
+
+    const [tab, setTab] = useState("login");
+    const [success, setSuccess] = useState(false);
+
+    if (success) {
+
+        return (
+            <div className="min-h-screen bg-white flex flex-col">
+
+                <header className="px-6 md:px-12 py-5 border-b flex justify-between items-center">
+
+                    <button
+                        onClick={() => onNavigate("landing")}
+                        className="text-2xl font-bold"
+                    >
+                        <span className="text-primary">B</span>in
+                    </button>
+
+                    <button
+                        onClick={() => onNavigate("landing")}
+                        className="text-gray-500"
+                    >
+                        На главную
+                    </button>
+
+                </header>
+
+
+                <main className="flex-1 flex items-center justify-center px-6">
+
+                    <div className="max-w-md w-full text-center">
+
+                        <div className="w-24 h-24 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-6">
+                            <Icon name="mail-check" size={42} className="text-profit"/>
+                        </div>
+
+                        <h1 className="text-3xl font-bold mb-4">
+                            Успешная регистрация
+                        </h1>
+
+                        <p className="text-gray-500 mb-6 leading-7">
+                            Для завершения регистрации необходимо нажать на ссылку в письме, отправленном на [user_email]
+                        </p>
+
+                        <button className="text-primary font-medium">
+                            Изменить почту
+                        </button>
+
+                        <div className="mt-8">
+                            <Button onClick={() => onNavigate("dashboard")} className="mx-auto">
+                                Перейти в приложение
+                            </Button>
+                        </div>
+
+                    </div>
+
+                </main>
+
+                <Footer/>
+
+            </div>
+        );
+    }
+
+
+    return (
+        <div className="min-h-screen bg-white text-gray-900 flex flex-col">
+
+            <header className="px-6 md:px-12 py-5 border-b flex justify-between items-center">
+
+                <button
+                    onClick={() => onNavigate("landing")}
+                    className="text-2xl font-bold"
+                >
+                    <span className="text-primary">B</span>in
+                </button>
+
+                <button
+                    onClick={() => onNavigate("landing")}
+                    className="text-gray-500"
+                >
+                    На главную
+                </button>
+
+            </header>
+
+
+            <main className="flex-1 flex items-center justify-center px-6 py-12">
+
+                <div className="max-w-md w-full">
+
+                    <div className="flex bg-gray-100 rounded-xl p-1 mb-8">
+
+                        <button
+                            onClick={() => setTab("login")}
+                            className={`flex-1 py-3 rounded-lg ${
+                                tab === "login"
+                                ? "bg-white shadow text-primary font-semibold"
+                                : "text-gray-500"
+                            }`}
+                        >
+                            Вход
+                        </button>
+
+                        <button
+                            onClick={() => setTab("register")}
+                            className={`flex-1 py-3 rounded-lg ${
+                                tab === "register"
+                                ? "bg-white shadow text-primary font-semibold"
+                                : "text-gray-500"
+                            }`}
+                        >
+                            Регистрация
+                        </button>
+
+                    </div>
+
+
+                    {tab === "login" ? (
+
+                        <div className="fade-in">
+
+                            <h1 className="text-2xl font-bold leading-9">
+                                Добро пожаловать обратно. Авторизуйтесь, чтобы начать торговать
+                            </h1>
+
+                            <div className="space-y-5 mt-8">
+
+                                <Input
+                                    label="Электронная почта"
+                                    placeholder="Введите email"
+                                    icon="mail"
+                                />
+
+                                <Input
+                                    label="Пароль"
+                                    placeholder="Введите пароль"
+                                    type="password"
+                                    icon="lock"
+                                />
+
+                                <div className="flex items-center justify-between text-sm">
+
+                                    <label className="flex gap-2 items-center text-gray-500">
+                                        <input type="checkbox"/>
+                                        Запомнить в системе
+                                    </label>
+
+                                    <a href="#" className="text-primary">
+                                        Забыли пароль
+                                    </a>
+
+                                </div>
+
+                                <Button
+                                    onClick={() => onNavigate("dashboard")}
+                                    className="w-full"
+                                >
+                                    Войти
+                                </Button>
+
+                            </div>
+
+                            <p className="text-center text-gray-500 mt-8">
+                                Еще нет аккаунта{" "}
+                                <button
+                                    onClick={() => setTab("register")}
+                                    className="text-primary font-medium"
+                                >
+                                    Зарегистрируйтесь
+                                </button>
+                            </p>
+
+                        </div>
+
+                    ) : (
+
+                        <div className="fade-in">
+
+                            <h1 className="text-2xl font-bold leading-9">
+                                Присоединяйтесь к Bin и начните торговать сразу после регистрации
+                            </h1>
+
+                            <div className="space-y-4 mt-8">
+
+                                <Input label="Имя" placeholder="Ваше имя" icon="user"/>
+                                <Input label="Электронная почта" placeholder="Введите email" icon="mail"/>
+                                <Input label="Пароль" placeholder="Создайте пароль" type="password" icon="lock"/>
+                                <Input label="Повторите пароль" placeholder="Повторите пароль" type="password" icon="lock"/>
+                                <Input label="Реферальный код" placeholder="Необязательно" icon="ticket"/>
+
+                                <label className="flex gap-2 items-start text-sm text-gray-500">
+                                    <input type="checkbox" className="mt-1"/>
+                                    Я принимаю условия соглашения
+                                </label>
+
+                                <Button
+                                    onClick={() => setSuccess(true)}
+                                    className="w-full"
+                                >
+                                    Создать аккаунт
+                                </Button>
+
+                            </div>
+
+                            <p className="text-center text-gray-500 mt-8">
+                                Уже есть аккаунт{" "}
+                                <button
+                                    onClick={() => setTab("login")}
+                                    className="text-primary font-medium"
+                                >
+                                    Войти
+                                </button>
+                            </p>
+
+                        </div>
+
+                    )}
+
+                </div>
+
+            </main>
+
+            <Footer/>
+
+        </div>
+    );
+}
+
+
+/* =====================================
+   DASHBOARD
+===================================== */
+
+function Dashboard({ onNavigate }) {
+
+    return (
+        <DarkLayout active="dashboard" onNavigate={onNavigate}>
+
+            <main className="max-w-6xl mx-auto px-4 md:px-8 py-8">
+
+                <div className="flex justify-between items-center mb-8">
+
+                    <div>
+                        <p className="text-gray-500 text-sm mb-2">
+                            Личный кабинет
+                        </p>
+
+                        <h1 className="text-2xl md:text-3xl font-bold text-white">
+                            Добро пожаловать, [username]
+                        </h1>
+                    </div>
+
+                    <div className="hidden md:flex w-12 h-12 rounded-full bg-primary/20 items-center justify-center">
+                        <Icon name="user" className="text-primary"/>
+                    </div>
+
+                </div>
+
+
+                <Card className="gradient p-6 md:p-8 mb-8 relative overflow-hidden">
+
+                    <div className="absolute -right-10 -top-10 w-52 h-52 bg-white/10 rounded-full blur-3xl"></div>
+
+                    <div className="relative">
+
+                        <div className="flex justify-between items-start">
+
+                            <div>
+                                <div className="text-white/70 text-sm mb-2">
+                                    Ваш счет
+                                </div>
+
+                                <div className="text-4xl font-bold text-white">
+                                    0 ₽
+                                </div>
+                            </div>
+
+                            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+                                <Icon name="wallet" className="text-white"/>
+                            </div>
+
+                        </div>
+
+
+                        <div className="flex flex-wrap gap-3 mt-8">
+
+                            <Button
+                                onClick={() => onNavigate("finance")}
+                                variant="green"
+                                icon="plus"
+                            >
+                                Пополнить счет
+                            </Button>
+
+                            <Button
+                                onClick={() => onNavigate("finance")}
+                                variant="ghost"
+                                icon="wallet"
+                            >
+                                Мой счёт
+                            </Button>
+
+                        </div>
+
+                    </div>
+
+                </Card>
+
+
+                <div className="flex justify-between items-center mb-5">
+
+                    <div>
+                        <h2 className="text-xl font-bold text-white">
+                            Актив дня
+                        </h2>
+
+                        <p className="text-gray-500 text-sm mt-1">
+                            Популярные торговые инструменты
+                        </p>
+                    </div>
+
+                    <span className="text-sm text-gray-500">
+                        Обзор рынка
+                    </span>
+
+                </div>
+
+
+                <div className="grid md:grid-cols-2 gap-5">
+
+                    {["BTC/USDT", "ETH/USDT"].map((asset, i) => (
+
+                        <Card
+                            key={asset}
+                            className="bg-[#24242E] p-5 border border-white/5 hover:border-primary/30 transition"
+                        >
+
+                            <div className="flex justify-between items-start mb-4">
+
+                                <div className="flex items-center gap-3">
+
+                                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                                        <Icon name={i === 0 ? "bitcoin" : "coins"} className="text-primary"/>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-white font-semibold">
+                                            {asset}
+                                        </div>
+
+                                        <div className="text-gray-500 text-xs">
+                                            Криптовалютный актив
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <span className="text-profit text-sm">
+                                    ▲ 78%
+                                </span>
+
+                            </div>
+
+
+                            <MiniChart green={i === 1}/>
+
+                            <Button
+                                onClick={() => onNavigate("trade")}
+                                className="w-full mt-3"
+                                icon="trending-up"
+                            >
+                                Торговать
+                            </Button>
+
+                        </Card>
+
+                    ))}
+
+                </div>
+
+
+                <div className="mt-8 bg-[#24242E] border border-white/5 rounded-2xl p-4 flex gap-3 items-start">
+
+                    <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center shrink-0">
+                        <Icon name="check-circle" className="text-profit"/>
+                    </div>
+
+                    <div className="flex-1">
+                        <div className="text-white font-medium">
+                            Подтверждение почты
+                        </div>
+
+                        <div className="text-gray-500 text-sm mt-1">
+                            Ваша почта успешно подтверждена!
+                        </div>
+                    </div>
+
+                    <button className="text-primary text-sm">
+                        Смотреть все
+                    </button>
+
+                </div>
+
+            </main>
+
+        </DarkLayout>
+    );
+}
+
+
+/* =====================================
+   TRADE TERMINAL
+===================================== */
+
+function Trade({ onNavigate }) {
+
+    const [amount, setAmount] = useState(100);
+    const [showAssets, setShowAssets] = useState(false);
+
+    return (
+        <DarkLayout active="trade" onNavigate={onNavigate}>
+
+            <div className="max-w-6xl mx-auto px-4 md:px-8 py-6">
+
+                <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+
+                    <button
+                        onClick={() => setShowAssets(true)}
+                        className="bg-[#24242E] rounded-xl px-5 py-3 flex items-center gap-4 text-white hover:bg-[#2C2C38] transition"
+                    >
+
+                        <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center font-bold">
+                            ₿
+                        </div>
+
+                        <div className="text-left">
+                            <div className="font-semibold">
+                                BTC / USDT
+                            </div>
+
+                            <div className="text-xs text-gray-500">
+                                Нажмите для выбора актива
+                            </div>
+                        </div>
+
+                        <Icon name="chevron-down" className="text-gray-500"/>
+
+                    </button>
+
+
+                    <div className="flex items-center gap-2 text-profit font-medium">
+                        <Icon name="trending-up" size={18}/>
+                        1 - 5 мин 78% ▲
+                    </div>
+
+                </div>
+
+
+                <CandlestickChart/>
+
+
+                <div className="grid md:grid-cols-3 gap-4 mt-6">
+
+                    <Card className="bg-[#24242E] p-5 border border-white/5">
+
+                        <div className="text-gray-500 text-sm mb-3">
+                            Сумма сделки
+                        </div>
+
+                        <div className="flex items-center gap-2">
+
+                            <button
+                                onClick={() => setAmount(Math.max(1, amount - 10))}
+                                className="w-10 h-10 rounded-lg bg-white/5 text-white text-xl hover:bg-white/10"
+                            >
+                                −
+                            </button>
+
+                            <div className="flex-1 text-center text-white font-bold text-xl">
+                                ₽ {amount}
+                            </div>
+
+                            <button
+                                onClick={() => setAmount(amount + 10)}
+                                className="w-10 h-10 rounded-lg bg-white/5 text-white text-xl hover:bg-white/10"
+                            >
+                                +
+                            </button>
+
+                        </div>
+
+                    </Card>
+
+
+                    <Card className="bg-[#24242E] p-5 border border-white/5">
+
+                        <div className="text-gray-500 text-sm mb-3">
+                            Время сделки
+                        </div>
+
+                        <div className="text-2xl text-white font-bold flex items-center gap-2">
+                            <Icon name="clock" className="text-primary"/>
+                            23:26
+                        </div>
+
+                    </Card>
+
+
+                    <Card className="bg-[#24242E] p-5 border border-white/5">
+
+                        <div className="text-gray-500 text-sm mb-3">
+                            Доходность 78%
+                        </div>
+
+                        <div className="text-2xl text-profit font-bold flex items-center gap-2">
+                            <Icon name="trending-up"/>
+                            78,00 ₽
+                        </div>
+
+                    </Card>
+
+                </div>
+
+
+                <div className="grid grid-cols-2 gap-4 mt-6">
+
+                    <button className="h-24 rounded-2xl bg-profit hover:bg-green-600 text-white text-4xl font-bold transition flex items-center justify-center">
+                        <Icon name="arrow-up" size={42}/>
+                    </button>
+
+                    <button className="h-24 rounded-2xl bg-danger hover:bg-red-600 text-white text-4xl font-bold transition flex items-center justify-center">
+                        <Icon name="arrow-down" size={42}/>
+                    </button>
+
+                </div>
+
+
+                <RiskWarning/>
+
+            </div>
+
+
+            {showAssets && (
+                <AssetsModal onClose={() => setShowAssets(false)}/>
+            )}
+
+        </DarkLayout>
+    );
+}
+
+
+/* =====================================
+   ASSETS MODAL
+===================================== */
+
+function AssetsModal({ onClose }) {
+
+    const assets = [
+        ["APE/USDT", "78%", "ape"],
+        ["AVAX/USDT", "82%", "coins"],
+        ["BTC/USDT", "78%", "bitcoin"],
+        ["DOGE/USDT", "75%", "dog"],
+        ["DOT/USDT", "80%", "circle-dollar-sign"]
+    ];
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+
+            <div className="bg-[#24242E] rounded-2xl w-full max-w-md p-6 shadow-2xl">
+
+                <div className="flex justify-between items-center mb-6">
+
+                    <div>
+                        <h2 className="text-xl font-bold text-white">
+                            Активы
+                        </h2>
+
+                        <p className="text-gray-500 text-sm mt-1">
+                            Выберите торговый инструмент
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={onClose}
+                        className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white"
+                    >
+                        <Icon name="x"/>
+                    </button>
+
+                </div>
+
+
+                <div className="relative mb-4">
+
+                    <Icon
+                        name="search"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
+                    />
+
+                    <input
+                        placeholder="Поиск актива"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-11 pr-4 py-3 text-white outline-none focus:border-primary"
+                    />
+
+                </div>
+
+
+                <div className="space-y-2">
+
+                    {assets.map(([name, percent, icon]) => (
+
+                        <button
+                            key={name}
+                            onClick={onClose}
+                            className="w-full flex justify-between items-center p-3 rounded-xl hover:bg-white/5 text-left transition"
+                        >
+
+                            <div className="flex items-center gap-3">
+
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                                    <Icon name={icon} size={18} className="text-primary"/>
+                                </div>
+
+                                <div>
+                                    <div className="text-white font-medium">
+                                        {name}
+                                    </div>
+
+                                    <div className="text-gray-500 text-xs">
+                                        Криптовалютный актив
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <span className="bg-profit/20 text-profit px-3 py-1 rounded-full text-sm">
+                                {percent}
+                            </span>
+
+                        </button>
+
+                    ))}
+
+                </div>
+
+            </div>
+
+        </div>
+    );
+}
+
+
+/* =====================================
+   FINANCE
+===================================== */
+
+function Finance({ onNavigate }) {
+
+    const [tab, setTab] = useState("deposit");
+    const [selectedMethod, setSelectedMethod] = useState(null);
+
+    const paymentMethods = [
+
+        {
+            id: "visa",
+            name: "VISA",
+            description: "Банковская карта",
+            icon: "credit-card",
+            color: "from-blue-600 to-blue-800",
+            details: "Международная банковская карта"
+        },
+
+        {
+            id: "mastercard",
+            name: "Mastercard",
+            description: "Банковская карта",
+            icon: "credit-card",
+            color: "from-orange-500 to-red-600",
+            details: "Международная банковская карта"
+        },
+
+        {
+            id: "mir",
+            name: "МИР",
+            description: "Российская платежная система",
+            icon: "landmark",
+            color: "from-green-500 to-emerald-700",
+            details: "Банковская карта МИР"
+        }
+
+    ];
+
+
+    return (
+        <DarkLayout active="finance" onNavigate={onNavigate}>
+
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+
+                {/* Header */}
+
+                <div className="flex items-center gap-3 mb-8">
+
+                    <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center">
+                        <Icon name="wallet" size={25} className="text-primary"/>
+                    </div>
+
+                    <div>
+                        <h1 className="text-2xl font-bold text-white">
+                            Финансы
+                        </h1>
+
+                        <p className="text-gray-500 text-sm">
+                            Управление балансом и операциями
+                        </p>
+                    </div>
+
+                </div>
+
+
+                {/* Balance */}
+
+                <div className="gradient rounded-2xl p-6 mb-8 relative overflow-hidden">
+
+                    <div className="absolute -right-10 -top-10 w-52 h-52 bg-white/10 rounded-full blur-3xl"></div>
+
+                    <div className="relative">
+
+                        <div className="text-white/60 text-sm mb-2">
+                            Текущий баланс
+                        </div>
+
+                        <div className="text-4xl font-bold text-white mb-6">
+                            0 ₽
+                        </div>
+
+                        <div className="flex items-center gap-2 text-white/70 text-sm">
+                            <Icon name="shield-check" size={17}/>
+                            Безопасное управление средствами
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                {/* Tabs */}
+
+                <div className="bg-[#24242E] p-1 rounded-xl flex gap-1 mb-8">
+
+                    {[
+                        ["deposit", "Пополнить счет", "plus-circle"],
+                        ["withdraw", "Вывести средства", "arrow-up-right"],
+                        ["history", "История", "history"]
+                    ].map(([id, label, icon]) => (
+
+                        <button
+                            key={id}
+                            onClick={() => setTab(id)}
+                            className={`
+                                flex-1 py-3 px-2 rounded-lg
+                                flex items-center justify-center gap-2 text-sm
+                                transition-all
+                                ${
+                                    tab === id
+                                    ? "bg-primary text-white shadow-lg shadow-purple-900/20"
+                                    : "text-gray-500 hover:text-white"
+                                }
+                            `}
+                        >
+
+                            <Icon name={icon} size={17}/>
+
+                            <span className="hidden sm:inline">
+                                {label}
+                            </span>
+
+                        </button>
+
+                    ))}
+
+                </div>
+
+
+                {/* DEPOSIT */}
+
+                {tab === "deposit" && (
+
+                    <div className="fade-in">
+
+                        <div className="mb-6">
+
+                            <h2 className="text-xl font-semibold text-white">
+                                Пополнение счета
+                            </h2>
+
+                            <p className="text-gray-500 text-sm mt-1">
+                                Выберите удобный способ пополнения баланса
+                            </p>
+
+                        </div>
+
+
+                        <div className="grid md:grid-cols-3 gap-4">
+
+                            {paymentMethods.map(method => (
+
+                                <button
+                                    key={method.id}
+                                    onClick={() => setSelectedMethod(method.id)}
+                                    className={`
+                                        group relative text-left bg-[#24242E]
+                                        border rounded-2xl p-5
+                                        transition-all duration-200
+                                        hover:-translate-y-1
+                                        ${
+                                            selectedMethod === method.id
+                                            ? "border-primary ring-2 ring-primary/20"
+                                            : "border-white/5 hover:border-primary/40"
+                                        }
+                                    `}
+                                >
+
+                                    {selectedMethod === method.id && (
+
+                                        <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                                            <Icon name="check" size={15} className="text-white"/>
+                                        </div>
+
+                                    )}
+
+
+                                    <div className={`
+                                        w-14 h-14 rounded-2xl
+                                        bg-gradient-to-br ${method.color}
+                                        flex items-center justify-center mb-5 shadow-lg
+                                    `}>
+                                        <Icon name={method.icon} size={27} className="text-white"/>
+                                    </div>
+
+
+                                    <h3 className="text-white font-semibold text-lg mb-1">
+                                        {method.name}
+                                    </h3>
+
+                                    <p className="text-gray-500 text-sm mb-1">
+                                        {method.description}
+                                    </p>
+
+                                    <p className="text-gray-600 text-xs mb-5">
+                                        {method.details}
+                                    </p>
+
+
+                                    <div className="flex items-center justify-between text-sm">
+
+                                        <span className="text-gray-500">
+                                            Комиссия
+                                        </span>
+
+                                        <span className="text-profit flex items-center gap-1">
+                                            <Icon name="check-circle" size={14}/>
+                                            0%
+                                        </span>
+
+                                    </div>
+
+                                </button>
+
+                            ))}
+
+                        </div>
+
+
+                        {/* Selected payment method */}
+
+                        {selectedMethod && (
+
+                            <Card className="bg-[#24242E] border border-white/5 p-6 mt-6 fade-in">
+
+                                <div className="flex items-center gap-3 mb-6">
+
+                                    <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+                                        <Icon name="wallet" size={20} className="text-primary"/>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-white font-semibold">
+                                            Сумма пополнения
+                                        </h3>
+
+                                        <p className="text-gray-500 text-xs">
+                                            Укажите сумму для продолжения
+                                        </p>
+                                    </div>
+
+                                </div>
+
+
+                                <div className="relative mb-5">
+
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                                        ₽
+                                    </span>
+
+                                    <input
+                                        type="number"
+                                        placeholder="Введите сумму"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-4 text-white text-lg outline-none focus:border-primary"
+                                    />
+
+                                </div>
+
+
+                                <div className="text-gray-500 text-xs mb-3">
+                                    Быстрый выбор суммы
+                                </div>
+
+
+                                <div className="grid grid-cols-3 gap-2 mb-6">
+
+                                    {[1000, 5000, 10000].map(amount => (
+
+                                        <button
+                                            key={amount}
+                                            className="py-3 rounded-xl bg-white/5 hover:bg-primary/20 text-gray-300 hover:text-white transition text-sm"
+                                        >
+                                            {amount.toLocaleString()} ₽
+                                        </button>
+
+                                    ))}
+
+                                </div>
+
+
+                                <Button
+                                    className="w-full py-4"
+                                    icon="arrow-right"
+                                >
+                                    Продолжить
+                                </Button>
+
+                            </Card>
+
+                        )}
+
+
+                        {!selectedMethod && (
+
+                            <div className="mt-8 bg-white/[0.03] border border-white/5 rounded-2xl p-5 flex items-start gap-3">
+
+                                <Icon name="info" size={20} className="text-gray-500 mt-0.5"/>
+
+                                <p className="text-gray-500 text-sm leading-6">
+                                    Выберите платежную систему выше, чтобы указать сумму пополнения счета.
+                                </p>
+
+                            </div>
+
+                        )}
+
+                    </div>
+
+                )}
+
+
+                {/* WITHDRAW */}
+
+                {tab === "withdraw" && (
+
+                    <Card className="bg-[#24242E] border border-white/5 p-6 max-w-lg fade-in">
+
+                        <div className="flex items-center gap-3 mb-6">
+
+                            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center">
+                                <Icon name="arrow-up-right" size={24} className="text-orange-400"/>
+                            </div>
+
+                            <div>
+                                <h2 className="text-white font-semibold">
+                                    Вывод средств
+                                </h2>
+
+                                <p className="text-gray-500 text-sm">
+                                    Создайте заявку на вывод
+                                </p>
+                            </div>
+
+                        </div>
+
+
+                        <div className="space-y-5">
+
+                            <div>
+
+                                <label className="text-sm text-gray-500 block mb-2">
+                                    Сумма вывода
+                                </label>
+
+                                <div className="relative">
+
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                                        ₽
+                                    </span>
+
+                                    <input
+                                        placeholder="Введите сумму"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 px-4 py-3 text-white outline-none focus:border-primary"
+                                    />
+
+                                </div>
+
+                            </div>
+
+
+                            <div>
+
+                                <label className="text-sm text-gray-500 block mb-2">
+                                    Реквизиты
+                                </label>
+
+                                <input
+                                    placeholder="Номер карты или счета"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary"
+                                />
+
+                            </div>
+
+
+                            <Button className="w-full" icon="arrow-right">
+                                Создать заявку
+                            </Button>
+
+                        </div>
+
+                    </Card>
+
+                )}
+
+
+                {/* HISTORY */}
+
+                {tab === "history" && (
+
+                    <div className="text-center py-20 fade-in">
+
+                        <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-5">
+                            <Icon name="receipt-text" size={30} className="text-gray-500"/>
+                        </div>
+
+                        <h2 className="text-white font-semibold text-lg mb-2">
+                            История транзакций
+                        </h2>
+
+                        <p className="text-gray-500">
+                            История транзакций пока что пуста
+                        </p>
+
+                    </div>
+
+                )}
+
+
+                <RiskWarning/>
+
+            </div>
+
+        </DarkLayout>
+    );
+}
+
+
+/* =====================================
+   PROFILE
+===================================== */
+
+function Profile({ onNavigate }) {
+
+    const [menu, setMenu] = useState("profile");
+
+    return (
+        <DarkLayout active="profile" onNavigate={onNavigate}>
+
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+
+                <h1 className="text-2xl font-bold text-white mb-8">
+                    Личный кабинет
+                </h1>
+
+
+                <div className="flex gap-2 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
+
+                    {[
+                        ["profile", "Профиль", "user"],
+                        ["security", "Безопасность", "shield-check"],
+                        ["trades", "История торговли", "trending-up"]
+                    ].map(([id, label, icon]) => (
+
+                        <button
+                            key={id}
+                            onClick={() => setMenu(id)}
+                            className={`
+                                px-5 py-3 whitespace-nowrap flex items-center gap-2
+                                ${
+                                    menu === id
+                                    ? "text-primary border-b-2 border-primary"
+                                    : "text-gray-500 hover:text-white"
+                                }
+                            `}
+                        >
+
+                            <Icon name={icon} size={17}/>
+
+                            {label}
+
+                        </button>
+
+                    ))}
+
+                </div>
+
+
+                {menu === "profile" && (
+
+                    <div className="fade-in">
+
+                        <Card className="bg-[#24242E] p-6 flex flex-col md:flex-row items-center gap-5 mb-6">
+
+                            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-white">
+
+                                <Icon name="user" size={38}/>
+
+                            </div>
+
+
+                            <div className="flex-1 text-center md:text-left">
+
+                                <h2 className="text-xl font-bold text-white">
+                                    [username]
+                                </h2>
+
+                                <span className="text-sm text-orange-400 flex items-center gap-1 justify-center md:justify-start mt-1">
+                                    <Icon name="alert-circle" size={14}/>
+                                    Не верифицирован
+                                </span>
+
+                            </div>
+
+
+                            <div className="flex gap-3">
+
+                                <Button variant="outline" icon="pencil">
+                                    Изменить
+                                </Button>
+
+                                <Button variant="danger" icon="trash-2">
+                                    Удалить
+                                </Button>
+
+                            </div>
+
+                        </Card>
+
+
+                        <Card className="bg-[#24242E] p-6 mb-6">
+
+                            <div className="flex items-center gap-3 mb-6">
+
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                                    <Icon name="id-card" className="text-primary"/>
+                                </div>
+
+                                <h2 className="text-white font-semibold">
+                                    Данные профиля
+                                </h2>
+
+                            </div>
+
+
+                            <div className="grid md:grid-cols-2 gap-5">
+
+                                {["id профиля", "Почта", "Телефон", "id реферала"].map(label => (
+
+                                    <div key={label}>
+
+                                        <div className="text-gray-500 text-sm mb-2">
+                                            {label}
+                                        </div>
+
+                                        <div className="h-12 rounded-xl bg-white/5 border border-white/5"></div>
+
+                                    </div>
+
+                                ))}
+
+                            </div>
+
+                        </Card>
+
+
+                        <div className="space-y-3">
+
+                            <button className="w-full md:w-auto border border-primary text-primary rounded-xl px-5 py-3 hover:bg-primary hover:text-white transition flex items-center gap-2">
+                                <Icon name="user-cog" size={18}/>
+                                Изменить личные данные
+                            </button>
+
+                            <button className="w-full md:w-auto border border-primary text-primary rounded-xl px-5 py-3 hover:bg-primary hover:text-white transition flex items-center gap-2">
+                                <Icon name="lock-keyhole" size={18}/>
+                                Изменить пароль
+                            </button>
+
+                            <button className="block text-danger py-3 flex items-center gap-2">
+                                <Icon name="trash-2" size={18}/>
+                                Удалить аккаунт
+                            </button>
+
+                        </div>
+
+
+                        <p className="text-xs text-gray-500 leading-5 mt-6">
+
+                            Редактируемая информация находится в полях доступных для изменений. Если по какой-то причине вы хотите изменить информацию закрытую для редактирования - свяжитесь с нашей службой поддержки, указав ID профиля, желаемый список изменений и причину:
+
+                        </p>
+
+                    </div>
+
+                )}
+
+
+                {menu === "security" && (
+
+                    <Card className="bg-[#24242E] p-6 fade-in">
+
+                        <div className="flex items-center gap-3 mb-5">
+
+                            <div className="w-11 h-11 rounded-xl bg-green-500/10 flex items-center justify-center">
+                                <Icon name="shield-check" className="text-profit"/>
+                            </div>
+
+                            <h2 className="text-white font-semibold">
+                                Безопасность
+                            </h2>
+
+                        </div>
+
+                        <p className="text-gray-500">
+                            Настройки безопасности аккаунта.
+                        </p>
+
+                    </Card>
+
+                )}
+
+
+                {menu === "trades" && (
+
+                    <div className="text-center py-20 text-gray-500 fade-in">
+
+                        <Icon name="history" size={40} className="mx-auto mb-4 opacity-50"/>
+
+                        История сделок пока что пуста
+
+                    </div>
+
+                )}
+
+
+                <RiskWarning/>
+
+            </div>
+
+        </DarkLayout>
+    );
+}
+
+
+/* =====================================
+   SUPPORT
+===================================== */
+
+function Support({ onNavigate }) {
+
+    return (
+        <DarkLayout active="support" onNavigate={onNavigate}>
+
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+
+                <div className="flex items-center gap-3 mb-4">
+
+                    <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center">
+                        <Icon name="headphones" size={25} className="text-primary"/>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-white">
+                        Техническая поддержка
+                    </h1>
+
+                </div>
+
+
+                <p className="text-gray-400 mb-8 max-w-2xl leading-7">
+                    Создайте обращение в кабинете или напишите в Telegram. Для быстрой помощи укажите ID профиля.
+                </p>
+
+
+                <div className="grid md:grid-cols-2 gap-5">
+
+                    <Card className="bg-[#24242E] p-6 border border-white/5">
+
+                        <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center mb-5">
+                            <Icon name="message-square-plus" size={24} className="text-primary"/>
+                        </div>
+
+                        <h2 className="text-white font-semibold mb-3">
+                            Обращение в поддержку
+                        </h2>
+
+                        <p className="text-gray-500 text-sm mb-5">
+                            Создайте обращение, если у вас возникли вопросы по работе платформы.
+                        </p>
+
+                        <Button icon="send">
+                            Создать обращение
+                        </Button>
+
+                    </Card>
+
+
+                    <Card className="bg-[#24242E] p-6 border border-white/5">
+
+                        <div className="w-12 h-12 rounded-2xl bg-blue-500/15 flex items-center justify-center mb-5">
+                            <Icon name="send" size={24} className="text-blue-400"/>
+                        </div>
+
+                        <h2 className="text-white font-semibold mb-3">
+                            Telegram
+                        </h2>
+
+                        <p className="text-gray-500 text-sm mb-5">
+                            Быстрый способ связаться с оператором поддержки.
+                        </p>
+
+                        <Button variant="blue" icon="external-link">
+                            Открыть Telegram
+                        </Button>
+
+                    </Card>
+
+                </div>
+
+
+                <Card className="bg-[#24242E] p-6 mt-5 border border-white/5">
+
+                    <div className="flex items-center gap-3 mb-3">
+
+                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                            <Icon name="inbox" className="text-gray-400"/>
+                        </div>
+
+                        <h2 className="text-white font-semibold">
+                            Ваши обращения
+                        </h2>
+
+                    </div>
+
+                    <p className="text-gray-500">
+                        Обращений пока нет. Создайте первое обращение, если нужна помощь.
+                    </p>
+
+                </Card>
+
+
+                <RiskWarning/>
+
+            </div>
+
+        </DarkLayout>
+    );
+}
+
+
+/* =====================================
+   HISTORY
+===================================== */
+
+function History({ onNavigate }) {
+
+    const [tab, setTab] = useState("transactions");
+
+    return (
+        <DarkLayout active="history" onNavigate={onNavigate}>
+
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+
+                <div className="flex items-center gap-3 mb-8">
+
+                    <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center">
+                        <Icon name="history" size={25} className="text-primary"/>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-white">
+                        История
+                    </h1>
+
+                </div>
+
+
+                <div className="flex gap-6 border-b border-white/10 mb-8 overflow-x-auto scrollbar-hide">
+
+                    <button
+                        onClick={() => setTab("transactions")}
+                        className={`py-3 whitespace-nowrap ${
+                            tab === "transactions"
+                            ? "text-primary border-b-2 border-primary"
+                            : "text-gray-500"
+                        }`}
+                    >
+                        История транзакций
+                    </button>
+
+                    <button
+                        onClick={() => setTab("trades")}
+                        className={`py-3 whitespace-nowrap ${
+                            tab === "trades"
+                            ? "text-primary border-b-2 border-primary"
+                            : "text-gray-500"
+                        }`}
+                    >
+                        История торговли
+                    </button>
+
+                </div>
+
+
+                <div className="text-center py-20 fade-in">
+
+                    <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-5">
+                        <Icon
+                            name={tab === "transactions" ? "receipt-text" : "trending-up"}
+                            size={30}
+                            className="text-gray-500"
+                        />
+                    </div>
+
+                    <h2 className="text-white font-semibold text-lg mb-2">
+                        {tab === "transactions"
+                            ? "История транзакций"
+                            : "История торговли"
+                        }
+                    </h2>
+
+                    <p className="text-gray-500">
+                        {tab === "transactions"
+                            ? "История транзакций пока что пуста"
+                            : "История сделок пока что пуста"
+                        }
+                    </p>
+
+                </div>
+
+
+                <RiskWarning/>
+
+            </div>
+
+        </DarkLayout>
+    );
+}
+
+
+/* =====================================
+   APP
+===================================== */
+
+function App() {
+
+    const [page, setPage] = useState("landing");
+
+    const navigate = (target) => {
+        setPage(target);
+        window.scrollTo(0, 0);
+    };
+
+
+    switch (page) {
+
+        case "landing":
+            return <Landing onNavigate={navigate}/>;
+
+        case "auth":
+            return <Auth onNavigate={navigate}/>;
+
+        case "dashboard":
+            return <Dashboard onNavigate={navigate}/>;
+
+        case "trade":
+            return <Trade onNavigate={navigate}/>;
+
+        case "finance":
+            return <Finance onNavigate={navigate}/>;
+
+        case "profile":
+            return <Profile onNavigate={navigate}/>;
+
+        case "support":
+            return <Support onNavigate={navigate}/>;
+
+        case "history":
+            return <History onNavigate={navigate}/>;
+
+        default:
+            return <Landing onNavigate={navigate}/>;
+
+    }
+
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+</script>
+
+</body>
+</html>
