@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bin — Trading Platform</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#7B3FE4',
+                        dark: '#1A1A22',
+                        profit: '#28A745',
+                        danger: '#FF5722'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Inter, Arial, sans-serif; }
+        button, input { font-family: inherit; }
+        .gradient { background: linear-gradient(135deg, #7B3FE4, #4d1c98); }
+        .glass { background: rgba(255,255,255,.05); backdrop-filter: blur(10px); }
+        .chart-grid { background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px); background-size: 45px 45px; }
+    </style>
+</head>
+
+<body class="bg-dark">
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState } = React;
+
+/* =========================
+   COMPONENTS
+========================= */
+
+function Button({ children, onClick, variant="primary", className="" }) {
+    const styles = {
+        primary: "bg-primary hover:bg-purple-700 text-white",
+        green: "bg-profit hover:bg-green-600 text-white",
+        danger: "bg-danger hover:bg-red-600 text-white",
+        outline: "border border-primary text-primary hover:bg-primary hover:text-white",
+        blue: "bg-blue-600 hover:bg-blue-700 text-white",
+        ghost: "bg-white/5 hover:bg-white/10 text-gray-300"
+    };
+
+    return (
+        <button onClick={onClick}
+            className={`rounded-xl px-5 py-3 font-medium transition ${styles[variant]} ${className}`}>
+            {children}
+        </button>
+    );
+}
+
+function Input({ label, placeholder, type="text", value, onChange }) {
+    return (
+        <div className="space-y-2">
+            {label && <label className="text-sm text-gray-500">{label}</label>}
+            <input
+                type={type}
+                placeholder={placeholder}
+                value={value}
+                onChange={onChange}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none focus:border-primary transition text-gray-900"
+            />
+        </div>
+    );
+}
+
+function DarkInput({ placeholder }) {
+    return (
+        <input
+            placeholder={placeholder}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-primary"
+        />
+    );
+}
+
+function Card({ children, className="" }) {
+    return (
+        <div className={`rounded-2xl ${className}`}>
+            {children}
+        </div>
+    );
+}
+
+function Footer({ dark=false }) {
+    return (
+        <footer className={`${dark ? "bg-dark text-gray-500 border-white/5" : "bg-white text-gray-500 border-gray-100"} border-t text-center py-6 text-sm`}>
+            Все права защищены 2026. Bin
+        </footer>
+    );
+}
+
+function RiskWarning() {
+    return (
+        <div className="text-xs leading-5 text-gray-500 mt-8 border-t border-white/10 pt-6">
+            <strong className="text-gray-400 block mb-2">Предупреждение о рисках</strong>
+            Торговые операции, осуществляемые на платформе, сопряжены с существенным риском потери капитала. Пожалуйста, внимательно ознакомьтесь с общими условиями торговли, представленными на нашем сайте, перед осуществлением любых инвестиций. Вам предоставляется право личного, некоммерческого использования информационной системы, размещенной на данном сайте. Право использования является ограниченным и неисключительным. Деятельность компании ведется за пределами Российской Федерации.
+        </div>
+    );
+}
+
+function MiniChart({ color="#7B3FE4" }) {
+    return (
+        <svg viewBox="0 0 300 100" className="w-full h-24">
+            <polyline
+                fill="none"
+                stroke={color}
+                strokeWidth="3"
+                points="0,75 25,62 45,68 65,40 85,50 110,28 135,42 160,20 180,34 205,15 230,27 250,8 275,18 300,5"
+            />
+        </svg>
+    );
+}
+
+function CandlestickChart() {
+    const candles = [
+        [40,80,60,30,true],[65,70,45,20,false],[90,65,35,15,true],
+        [115,75,50,30,true],[140,55,30,10,false],[165,60,40,20,true],
+        [190,45,25,5,true],[215,50,30,15,false],[240,40,20,0,true],
+        [265,35,15,5,true],[290,30,10,0,false],[315,25,5,0,true],
+        [340,35,15,5,false],[365,20,5,0,true]
+    ];
+
+    return (
+        <div className="h-80 md:h-96 chart-grid rounded-2xl relative overflow-hidden p-4">
+            <svg viewBox="0 0 400 180" preserveAspectRatio="none" className="w-full h-full">
+                <line x1="0" y1="45" x2="400" y2="45" stroke="#ffffff12"/>
+                <line x1="0" y1="90" x2="400" y2="90" stroke="#ffffff12"/>
+                <line x1="0" y1="135" x2="400" y2="135" stroke="#ffffff12"/>
+
+                {candles.map((c,i) => {
+                    const x = c[0];
+                    const high = c[1];
+                    const low = c[2];
+                    const open = c[3];
+                    const close = c[4] ? c[2]-15 : c[2]+15;
+                    const green = c[4];
+
+                    return (
+                        <g key={i}>
+                            <line x1={x} y1={high} x2={x} y2={low}
+                                  stroke={green ? "#28A745" : "#FF5722"} strokeWidth="1.5"/>
+                            <rect x={x-5} y={Math.min(open,close)}
+                                  width="10"
+                                  height={Math.max(8,Math.abs(open-close))}
+                                  fill={green ? "#28A745" : "#FF5722"}
+                                  rx="1"/>
+                        </g>
+                    )
+                })}
+
+                <polyline
+                    fill="none"
+                    stroke="#28A745"
+                    strokeWidth="1.5"
+                    strokeDasharray="4 4"
+                    points="0,65 400,65"
+                />
+            </svg>
+
+            <div className="absolute right-3 top-[35%] bg-profit text-white text-xs px-3 py-1 rounded">
+                98 240,50
+            </div>
+
+            <div className="absolute bottom-3 left-4 text-xs text-gray-500">
+                23:15
+            </div>
+        </div>
+    );
+}
+
+/* =========================
+   HEADER / NAVIGATION
+========================= */
+
+function TopBar({ onNavigate }) {
+    return (
+        <header className="h-16 border-b border-white/10 bg-dark flex items-center justify-between px-4 md:px-8 sticky top-0 z-30">
+            <button onClick={() => onNavigate("dashboard")} className="text-2xl font-bold text-white">
+                <span className="text-primary">B</span>in
+            </button>
+
+            <div className="flex items-center gap-4">
+                <button className="text-gray-400 text-xl">♧</button>
+                <span className="text-gray-300 hidden sm:block">Баланс</span>
+                <span className="font-semibold text-white">0 ₽</span>
+                <Button onClick={() => onNavigate("trade")} className="py-2 px-4">
+                    Торговать
+                </Button>
+            </div>
+        </header>
+    );
+}
+
+function TabBar({ onNavigate, active }) {
+    const items = [
+        { id:"profile", icon:"♙", label:"Профиль" },
+        { id:"support", icon:"?", label:"Поддержка" },
+        { id:"history", icon:"↻", label:"История" }
+    ];
+
+    return (
+        <nav className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-white/10 z-40">
+            <div className="max-w-4xl mx-auto flex justify-around py-3">
+                {items.map(item => (
+                    <button
+                        key={item.id}
+                        onClick={() => onNavigate(item.id)}
+                        className={`flex flex-col items-center gap-1 text-xs transition ${
+                            active === item.id ? "text-primary" : "text-gray-500 hover:text-white"
+                        }`}
+                    >
+                        <span className="text-xl">{item.icon}</span>
+                        {item.label}
+                    </button>
+                ))}
+            </div>
+        </nav>
+    );
+}
+
+/* =========================
+   LANDING
+========================= */
+
+function Landing({ onNavigate }) {
+    return (
+        <div className="min-h-screen bg-white text-gray-900">
+            <header className="flex items-center justify-between px-6 md:px-12 py-5">
+                <div className="text-2xl font-bold">
+                    <span className="text-primary">B</span>in
+                </div>
+                <Button onClick={() => onNavigate("auth")} className="px-6 py-2">
+                    Войти
+                </Button>
+            </header>
+
+            <main className="max-w-6xl mx-auto px-6 py-12 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div className="inline-block bg-purple-50 text-primary px-4 py-2 rounded-full text-sm mb-6">
+                        Современная торговая платформа
+                    </div>
+
+                    <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
+                        Платформа для понятных и разумных инвестиций
+                    </h1>
+
+                    <p className="text-lg text-gray-500 mb-8">
+                        Регистрируйся и используй возможности платформы
+                    </p>
+
+                    <Button onClick={() => onNavigate("auth")} className="px-8">
+                        Начать работу
+                    </Button>
+                </div>
+
+                <div className="relative flex justify-center">
+                    <div className="w-64 md:w-72 h-[500px] bg-gray-900 rounded-[40px] border-8 border-gray-200 shadow-2xl p-4 relative">
+                        <div className="text-white text-sm flex justify-between mb-8">
+                            <span>9:41</span>
+                            <span>● ● ●</span>
+                        </div>
+
+                        <div className="text-white text-center mb-6">
+                            <div className="text-xs text-gray-400">Ваш баланс</div>
+                            <div className="text-2xl font-bold">0 ₽</div>
+                        </div>
+
+                        <div className="bg-gray-800 rounded-xl p-3">
+                            <div className="text-gray-400 text-xs">BTC / USDT</div>
+                            <div className="text-white font-bold mb-3">98 240,50</div>
+                            <MiniChart color="#28A745"/>
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-2 gap-2">
+                            <div className="bg-profit/20 text-profit text-xs p-3 rounded-lg text-center">Вверх</div>
+                            <div className="bg-danger/20 text-danger text-xs p-3 rounded-lg text-center">Вниз</div>
+                        </div>
+
+                        <div className="absolute -right-12 top-20 bg-white shadow-xl border rounded-xl p-3 text-sm">
+                            ✓ Удобный интерфейс
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <Footer />
+        </div>
+    );
+}
+
+/* =========================
+   AUTH
+========================= */
+
+function Auth({ onNavigate }) {
+    const [tab, setTab] = useState("login");
+    const [email, setEmail] = useState("");
+    const [success, setSuccess] = useState(false);
+
+    if (success) {
+        return (
+            <div className="min-h-screen bg-white flex items-center justify-center px-6">
+                <div className="max-w-md w-full text-center">
+                    <div className="text-6xl mb-6">✉️</div>
+                    <h1 className="text-3xl font-bold mb-4">Успешная регистрация</h1>
+                    <p className="text-gray-500 mb-6">
+                        Для завершения регистрации необходимо нажать на ссылку в письме, отправленном на [user_email]
+                    </p>
+                    <button className="text-primary font-medium">Изменить почту</button>
+                    <div className="mt-8">
+                        <Button onClick={() => onNavigate("dashboard")}>Перейти в приложение</Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="min-h-screen bg-white text-gray-900 flex flex-col">
+            <header className="px-6 md:px-12 py-5 border-b flex justify-between items-center">
+                <button onClick={() => onNavigate("landing")} className="text-2xl font-bold">
+                    <span className="text-primary">B</span>in
+                </button>
+                <button onClick={() => onNavigate("landing")} className="text-gray-500">
+                    На главную
+                </button>
+            </header>
+
+            <main className="flex-1 flex items-center justify-center px-6 py-12">
+                <div className="max-w-md w-full">
+                    <div className="flex bg-gray-100 rounded-xl p-1 mb-8">
+                        <button onClick={() => setTab("login")}
+                            className={`flex-1 py-3 rounded-lg ${tab === "login" ? "bg-white shadow text-primary font-semibold" : "text-gray-500"}`}>
+                            Вход
+                        </button>
+                        <button onClick={() => setTab("register")}
+                            className={`flex-1 py-3 rounded-lg ${tab === "register" ? "bg-white shadow text-primary font-semibold" : "text-gray-500"}`}>
+                            Регистрация
+                        </button>
+                    </div>
+
+                    {tab === "login" ? (
+                        <div>
+                            <h1 className="text-2xl font-bold mb-3">
+                                Добро пожаловать обратно. Авторизуйтесь, чтобы начать торговать
+                            </h1>
+
+                            <div className="space-y-5 mt-8">
+                                <Input label="Электронная почта" placeholder="Введите email" value={email} onChange={e => setEmail(e.target.value)} />
+                                <Input label="Пароль" placeholder="Введите пароль" type="password" />
+
+                                <div className="flex items-center justify-between text-sm">
+                                    <label className="flex gap-2 items-center text-gray-500">
+                                        <input type="checkbox"/> Запомнить в системе
+                                    </label>
+                                    <a href="#" className="text-primary">Забыли пароль</a>
+                                </div>
+
+                                <Button onClick={() => onNavigate("dashboard")} className="w-full">
+                                    Войти
+                                </Button>
+                            </div>
+
+                            <p className="text-center text-gray-500 mt-8">
+                                Еще нет аккаунта{" "}
+                                <button onClick={() => setTab("register")} className="text-primary font-medium">Зарегистрируйтесь</button>
+                            </p>
+                        </div>
+                    ) : (
+                        <div>
+                            <h1 className="text-2xl font-bold mb-3">
+                                Присоединяйтесь к Bin и начните торговать сразу после регистрации
+                            </h1>
+
+                            <div className="space-y-4 mt-8">
+                                <Input label="Имя" placeholder="Ваше имя" />
+                                <Input label="Электронная почта" placeholder="Введите email" />
+                                <Input label="Пароль" placeholder="Создайте пароль" type="password" />
+                                <Input label="Повторите пароль" placeholder="Повторите пароль" type="password" />
+                                <Input label="Реферальный код" placeholder="Необязательно" />
+
+                                <label className="flex gap-2 items-start text-sm text-gray-500">
+                                    <input type="checkbox" className="mt-1"/>
+                                    Я принимаю условия соглашения
+                                </label>
+
+                                <Button onClick={() => setSuccess(true)} className="w-full">
+                                    Создать аккаунт
+                                </Button>
+                            </div>
+
+                            <p className="text-center text-gray-500 mt-8">
+                                Уже есть аккаунт{" "}
+                                <button onClick={() => setTab("login")} className="text-primary font-medium">Войти</button>
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </main>
+
+            <Footer />
+        </div>
+    );
+}
+
+/* =========================
+   DASHBOARD
+========================= */
+
+function Dashboard({ onNavigate }) {
+    return (
+        <DarkLayout active="dashboard" onNavigate={onNavigate}>
+            <div className="max-w-6xl mx-auto px-4 md:px-8 py-8">
+                <h1 className="text-2xl md:text-3xl font-bold text-white mb-8">
+                    Добро пожаловать, [username]
+                </h1>
+
+                <Card className="gradient p-6 md:p-8 mb-8">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <div className="text-white/70 text-sm mb-2">Ваш счет</div>
+                            <div className="text-4xl font-bold text-white">0 ₽</div>
+                        </div>
+                        <div className="text-white/50 text-3xl">₽</div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 mt-8">
+                        <Button onClick={() => onNavigate("finance")} variant="green">
+                            + Пополнить счет
+                        </Button>
+                        <Button onClick={() => onNavigate("finance")} variant="ghost">
+                            Мой счёт
+                        </Button>
+                    </div>
+                </Card>
+
+                <div className="flex justify-between items-center mb-5">
+                    <h2 className="text-xl font-bold text-white">Актив дня</h2>
+                    <span className="text-sm text-gray-500">Обзор рынка</span>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-5">
+                    {["BTC/USDT", "ETH/USDT"].map((asset, i) => (
+                        <Card key={asset} className="bg-[#24242E] p-5 border border-white/5">
+                            <div className="flex justify-between mb-4">
+                                <div>
+                                    <div className="text-white font-semibold">{asset}</div>
+                                    <div className="text-gray-500 text-sm">Криптовалютный актив</div>
+                                </div>
+                                <span className="text-profit text-sm">▲ 78%</span>
+                            </div>
+
+                            <MiniChart color={i === 0 ? "#7B3FE4" : "#28A745"} />
+
+                            <Button onClick={() => onNavigate("trade")} className="w-full mt-3">
+                                Торговать
+                            </Button>
+                        </Card>
+                    ))}
+                </div>
+
+                <div className="mt-8 bg-[#24242E] border border-white/5 rounded-xl p-4 flex gap-3">
+                    <span className="text-green-400">✓</span>
+                    <div className="flex-1">
+                        <div className="text-white font-medium">Подтверждение почты</div>
+                        <div className="text-gray-500 text-sm">Ваша почта успешно подтверждена!</div>
+                    </div>
+                    <button className="text-primary text-sm">Смотреть все</button>
+                </div>
+            </div>
+        </DarkLayout>
+    );
+}
+
+/* =========================
+   TRADE TERMINAL
+========================= */
+
+function Trade({ onNavigate }) {
+    const [amount, setAmount] = useState(100);
+    const [showAssets, setShowAssets] = useState(false);
+
+    return (
+        <DarkLayout active="trade" onNavigate={onNavigate}>
+            <div className="max-w-6xl mx-auto px-4 md:px-8 py-6">
+                <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+                    <button onClick={() => setShowAssets(true)}
+                        className="bg-[#24242E] rounded-xl px-5 py-3 flex items-center gap-4 text-white">
+                        <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center font-bold">₿</div>
+                        <div className="text-left">
+                            <div className="font-semibold">BTC / USDT</div>
+                            <div className="text-xs text-gray-500">Нажмите для выбора актива</div>
+                        </div>
+                        <span className="text-gray-500">⌄</span>
+                    </button>
+
+                    <div className="text-profit font-medium">
+                        1 - 5 мин 78% ▲
+                    </div>
+                </div>
+
+                <CandlestickChart />
+
+                <div className="grid md:grid-cols-3 gap-4 mt-6">
+                    <Card className="bg-[#24242E] p-5">
+                        <div className="text-gray-500 text-sm mb-3">Сумма сделки</div>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setAmount(Math.max(1, amount-10))}
+                                className="w-10 h-10 rounded-lg bg-white/5 text-white text-xl">−</button>
+                            <div className="flex-1 text-center text-white font-bold text-xl">₽ {amount}</div>
+                            <button onClick={() => setAmount(amount+10)}
+                                className="w-10 h-10 rounded-lg bg-white/5 text-white text-xl">+</button>
+                        </div>
+                    </Card>
+
+                    <Card className="bg-[#24242E] p-5">
+                        <div className="text-gray-500 text-sm mb-3">Время сделки</div>
+                        <div className="text-2xl text-white font-bold">23:26</div>
+                    </Card>
+
+                    <Card className="bg-[#24242E] p-5">
+                        <div className="text-gray-500 text-sm mb-3">Доходность 78%</div>
+                        <div className="text-2xl text-profit font-bold">78,00 ₽</div>
+                    </Card>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                    <button className="h-24 rounded-2xl bg-profit hover:bg-green-600 text-white text-4xl font-bold transition">
+                        ↑
+                    </button>
+                    <button className="h-24 rounded-2xl bg-danger hover:bg-red-600 text-white text-4xl font-bold transition">
+                        ↓
+                    </button>
+                </div>
+
+                <RiskWarning />
+            </div>
+
+            {showAssets && <AssetsModal onClose={() => setShowAssets(false)} />}
+        </DarkLayout>
+    );
+}
+
+function AssetsModal({ onClose }) {
+    const assets = [
+        ["APE/USDT", "78%"],
+        ["AVAX/USDT", "82%"],
+        ["BTC/USDT", "78%"],
+        ["DOGE/USDT", "75%"],
+        ["DOT/USDT", "80%"]
+    ];
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+            <div className="bg-[#24242E] rounded-2xl w-full max-w-md p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-white">Активы</h2>
+                    <button onClick={onClose} className="text-gray-400 text-xl">×</button>
+                </div>
+
+                <input
+                    placeholder="Поиск актива"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white mb-4 outline-none"
+                />
+
+                <div className="space-y-2">
+                    {assets.map(([name, percent]) => (
+                        <button key={name} onClick={onClose}
+                            className="w-full flex justify-between items-center p-4 rounded-xl hover:bg-white/5 text-left">
+                            <span className="text-white font-medium">{name}</span>
+                            <span className="bg-profit/20 text-profit px-3 py-1 rounded-full text-sm">{percent}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* =========================
+   FINANCE
+========================= */
+
+function Finance({ onNavigate }) {
+    const [tab, setTab] = useState("deposit");
+
+    return (
+        <DarkLayout active="finance" onNavigate={onNavigate}>
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+                <h1 className="text-2xl font-bold text-white mb-8">Финансы</h1>
+
+                <div className="flex gap-2 overflow-x-auto border-b border-white/10 mb-8">
+                    {[
+                        ["deposit","Пополнить счет"],
+                        ["withdraw","Вывести средства"],
+                        ["history","История"]
+                    ].map(([id,label]) => (
+                        <button key={id} onClick={() => setTab(id)}
+                            className={`px-5 py-3 whitespace-nowrap ${tab === id ? "text-primary border-b-2 border-primary" : "text-gray-500"}`}>
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                {tab === "deposit" && (
+                    <div>
+                        <h2 className="text-white font-semibold mb-4">Выберите способ пополнения</h2>
+                        <div className="grid md:grid-cols-3 gap-4">
+                            {["VISA", "Mastercard", "МИР"].map(name => (
+                                <Card key={name} className="bg-[#24242E] p-8 text-center border border-white/5">
+                                    <div className="text-3xl font-bold text-white mb-5">{name}</div>
+                                    <Button className="w-full">Выбрать</Button>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {tab === "withdraw" && (
+                    <Card className="bg-[#24242E] p-6 max-w-lg">
+                        <h2 className="text-white font-semibold mb-6">Вывод средств</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm text-gray-500">Сумма вывода</label>
+                                <DarkInput placeholder="Введите сумму ₽" />
+                            </div>
+                            <div>
+                                <label className="text-sm text-gray-500">Реквизиты</label>
+                                <DarkInput placeholder="Номер карты или счета" />
+                            </div>
+                            <Button className="w-full">Создать заявку</Button>
+                        </div>
+                    </Card>
+                )}
+
+                {tab === "history" && (
+                    <div className="text-center py-16 text-gray-500">
+                        История транзакций пока что пуста
+                    </div>
+                )}
+
+                <RiskWarning />
+            </div>
+        </DarkLayout>
+    );
+}
+
+/* =========================
+   PROFILE
+========================= */
+
+function Profile({ onNavigate }) {
+    const [menu, setMenu] = useState("profile");
+
+    return (
+        <DarkLayout active="profile" onNavigate={onNavigate}>
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+                <h1 className="text-2xl font-bold text-white mb-8">Личный кабинет</h1>
+
+                <div className="flex gap-2 border-b border-white/10 mb-8 overflow-x-auto">
+                    {["profile","security","trades"].map(id => (
+                        <button key={id} onClick={() => setMenu(id)}
+                            className={`px-5 py-3 whitespace-nowrap ${menu === id ? "text-primary border-b-2 border-primary" : "text-gray-500"}`}>
+                            {id === "profile" ? "Профиль" : id === "security" ? "Безопасность" : "История торговли"}
+                        </button>
+                    ))}
+                </div>
+
+                {menu === "profile" && (
+                    <>
+                        <Card className="bg-[#24242E] p-6 flex flex-col md:flex-row items-center gap-5 mb-6">
+                            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-3xl text-white">
+                                ♙
+                            </div>
+
+                            <div className="flex-1 text-center md:text-left">
+                                <h2 className="text-xl font-bold text-white">[username]</h2>
+                                <span className="text-sm text-orange-400">Не верифицирован</span>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <Button variant="outline">Изменить</Button>
+                                <Button variant="danger">Удалить</Button>
+                            </div>
+                        </Card>
+
+                        <Card className="bg-[#24242E] p-6 mb-6">
+                            <h2 className="text-white font-semibold mb-6">Данные профиля</h2>
+                            <div className="grid md:grid-cols-2 gap-5">
+                                {["id профиля", "Почта", "Телефон", "id реферала"].map(label => (
+                                    <div key={label}>
+                                        <div className="text-gray-500 text-sm mb-2">{label}</div>
+                                        <div className="h-12 rounded-xl bg-white/5 border border-white/5"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+
+                        <div className="space-y-3">
+                            <button className="w-full md:w-auto block border border-primary text-primary rounded-xl px-5 py-3 hover:bg-primary hover:text-white transition">
+                                Изменить личные данные
+                            </button>
+
+                            <button className="w-full md:w-auto block border border-primary text-primary rounded-xl px-5 py-3 hover:bg-primary hover:text-white transition">
+                                Изменить пароль
+                            </button>
+
+                            <button className="block text-danger py-3">
+                                Удалить аккаунт
+                            </button>
+                        </div>
+
+                        <p className="text-xs text-gray-500 leading-5 mt-6">
+                            Редактируемая информация находится в полях доступных для изменений. Если по какой-то причине вы хотите изменить информацию закрытую для редактирования - свяжитесь с нашей службой поддержки, указав ID профиля, желаемый список изменений и причину:
+                        </p>
+                    </>
+                )}
+
+                {menu === "security" && (
+                    <Card className="bg-[#24242E] p-6">
+                        <h2 className="text-white font-semibold mb-4">Безопасность</h2>
+                        <p className="text-gray-500">Настройки безопасности аккаунта.</p>
+                    </Card>
+                )}
+
+                {menu === "trades" && (
+                    <div className="text-center py-16 text-gray-500">
+                        История сделок пока что пуста
+                    </div>
+                )}
+
+                <RiskWarning />
+            </div>
+        </DarkLayout>
+    );
+}
+
+/* =========================
+   SUPPORT
+========================= */
+
+function Support({ onNavigate }) {
+    return (
+        <DarkLayout active="support" onNavigate={onNavigate}>
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+                <h1 className="text-2xl font-bold text-white mb-4">Техническая поддержка</h1>
+
+                <p className="text-gray-400 mb-8">
+                    Создайте обращение в кабинете или напишите в Telegram. Для быстрой помощи укажите ID профиля.
+                </p>
+
+                <Card className="bg-[#24242E] p-6 mb-5">
+                    <h2 className="text-white font-semibold mb-4">Обращение в поддержку</h2>
+                    <Button>Создать обращение</Button>
+                </Card>
+
+                <Card className="bg-[#24242E] p-6 mb-5">
+                    <h2 className="text-white font-semibold mb-2">Telegram</h2>
+                    <p className="text-gray-500 mb-4">
+                        Быстрый способ связаться с оператором поддержки.
+                    </p>
+                    <Button variant="blue">Открыть Telegram</Button>
+                </Card>
+
+                <Card className="bg-[#24242E] p-6">
+                    <h2 className="text-white font-semibold mb-3">Ваши обращения</h2>
+                    <p className="text-gray-500">
+                        Обращений пока нет. Создайте первое обращение, если нужна помощь.
+                    </p>
+                </Card>
+
+                <RiskWarning />
+            </div>
+        </DarkLayout>
+    );
+}
+
+/* =========================
+   HISTORY
+========================= */
+
+function History({ onNavigate }) {
+    const [tab, setTab] = useState("transactions");
+
+    return (
+        <DarkLayout active="history" onNavigate={onNavigate}>
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+                <h1 className="text-2xl font-bold text-white mb-8">История</h1>
+
+                <div className="flex gap-4 border-b border-white/10 mb-8">
+                    <button onClick={() => setTab("transactions")}
+                        className={`py-3 ${tab === "transactions" ? "text-primary border-b-2 border-primary" : "text-gray-500"}`}>
+                        История транзакций
+                    </button>
+                    <button onClick={() => setTab("trades")}
+                        className={`py-3 ${tab === "trades" ? "text-primary border-b-2 border-primary" : "text-gray-500"}`}>
+                        История торговли
+                    </button>
+                </div>
+
+                <div className="text-center py-20 text-gray-500">
+                    {tab === "transactions"
+                        ? "История транзакций пока что пуста"
+                        : "История сделок пока что пуста"}
+                </div>
+
+                <RiskWarning />
+            </div>
+        </DarkLayout>
+    );
+}
+
+/* =========================
+   DARK LAYOUT
+========================= */
+
+function DarkLayout({ children, active, onNavigate }) {
+    return (
+        <div className="min-h-screen bg-dark text-white pb-20">
+            <TopBar onNavigate={onNavigate}/>
+            {children}
+            <TabBar active={active} onNavigate={onNavigate}/>
+        </div>
+    );
+}
+
+/* =========================
+   APP
+========================= */
+
+function App() {
+    const [page, setPage] = useState("landing");
+
+    const navigate = (target) => {
+        setPage(target);
+        window.scrollTo(0,0);
+    };
+
+    switch(page) {
+        case "landing":
+            return <Landing onNavigate={navigate}/>;
+        case "auth":
+            return <Auth onNavigate={navigate}/>;
+        case "dashboard":
+            return <Dashboard onNavigate={navigate}/>;
+        case "trade":
+            return <Trade onNavigate={navigate}/>;
+        case "finance":
+            return <Finance onNavigate={navigate}/>;
+        case "profile":
+            return <Profile onNavigate={navigate}/>;
+        case "support":
+            return <Support onNavigate={navigate}/>;
+        case "history":
+            return <History onNavigate={navigate}/>;
+        default:
+            return <Landing onNavigate={navigate}/>;
+    }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
