@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bin — Crypto Terminal</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, sans-serif;
+      background: #f7f9fc;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, .78);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .dark .glass {
+      background: rgba(15, 23, 42, .78);
+    }
+
+    .soft-shadow {
+      box-shadow: 0 20px 60px rgba(15, 23, 42, .08);
+    }
+
+    .dark .soft-shadow {
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+    }
+
+    .chart-grid {
+      background-image:
+        linear-gradient(rgba(148, 163, 184, .10) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, .10) 1px, transparent 1px);
+      background-size: 42px 42px;
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-hide {
+      scrollbar-width: none;
+    }
+
+    .coin-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+    }
+
+    .coin-icon svg {
+      width: 25px;
+      height: 25px;
+    }
+
+    .gradient-text {
+      background: linear-gradient(90deg, #2563eb, #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .animate-fade {
+      animation: fade .25s ease-out;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .mobile-scroll {
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useState } = React;
+
+    const API_URL =
+      "https://api.coingecko.com/api/v3/coins/markets" +
+      "?vs_currency=usd&order=market_cap_desc&per_page=50&page=1" +
+      "&sparkline=true&price_change_percentage=24h";
+
+    const FALLBACK_COINS = [
+      { id: "bitcoin", symbol: "btc", name: "Bitcoin", price: 80839, change: 5.57 },
+      { id: "ethereum", symbol: "eth", name: "Ethereum", price: 2593.9, change: 5.4 },
+      { id: "tether", symbol: "usdt", name: "Tether", price: 1, change: .04 },
+      { id: "binancecoin", symbol: "bnb", name: "BNB", price: 758.14, change: 4.32 },
+      { id: "ripple", symbol: "xrp", name: "XRP", price: 1.38, change: 6.0 },
+      { id: "solana", symbol: "sol", name: "Solana", price: 111.47, change: 10.48 },
+      { id: "usd-coin", symbol: "usdc", name: "USDC", price: 1, change: .02 },
+      { id: "dogecoin", symbol: "doge", name: "Dogecoin", price: .19, change: 4.8 },
+      { id: "cardano", symbol: "ada", name: "Cardano", price: .81, change: 3.2 },
+      { id: "avalanche-2", symbol: "avax", name: "Avalanche", price: 36.42, change: 2.4 },
+      { id: "chainlink", symbol: "link", name: "Chainlink", price: 18.2, change: 5.1 },
+      { id: "polkadot", symbol: "dot", name: "Polkadot", price: 4.94, change: 2.7 },
+      { id: "tron", symbol: "trx", name: "TRON", price: .34, change: 1.2 },
+      { id: "shiba-inu", symbol: "shib", name: "Shiba Inu", price: .000013, change: 3.8 },
+      { id: "litecoin", symbol: "ltc", name: "Litecoin", price: 93.4, change: 2.1 },
+      { id: "bitcoin-cash", symbol: "bch", name: "Bitcoin Cash", price: 432.5, change: 1.7 },
+      { id: "sui", symbol: "sui", name: "Sui", price: 3.12, change: 7.2 },
+      { id: "toncoin", symbol: "ton", name: "Toncoin", price: 3.04, change: 1.9 },
+      { id: "uniswap", symbol: "uni", name: "Uniswap", price: 8.12, change: 4.2 },
+      { id: "stellar", symbol: "xlm", name: "Stellar", price: .32, change: 2.4 }
+    ];
+
+    const coinMeta = {
+      btc: {
+        bg: "#f59e0b",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 4v16"/>
+            <path d="M15 4v16"/>
+            <path d="M6 7h7.5a3.5 3.5 0 0 1 0 7H6h8a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        `
+      },
+      eth: {
+        bg: "#64748b",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L5 12.2 12 16.2 19 12.2 12 2Z" fill="currentColor" opacity=".95"/>
+            <path d="M5 13.4L12 22l7-8.6-7 4.1-7-4.1Z" fill="currentColor" opacity=".6"/>
+          </svg>
+        `
+      },
+      usdt: {
+        bg: "#26a17b",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M7 7h10M12 7v11M8 11.5h8M8.5 16.5h7"/>
+          </svg>
+        `
+      },
+      bnb: {
+        bg: "#f3ba2f",
+        color: "#111827",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.5 15.2 5.7 12 8.9 8.8 5.7 12 2.5Z"/>
+            <path d="m6.8 7.7 2.1 2.1-2.1 2.1-2.1-2.1 2.1-2.1Z"/>
+            <path d="m17.2 7.7 2.1 2.1-2.1 2.1-2.1-2.1 2.1-2.1Z"/>
+            <path d="m12 9.8 2.2 2.2-2.2 2.2-2.2-2.2L12 9.8Z"/>
+            <path d="m12 15.2 3.2 3.1-3.2 3.2-3.2-3.2 3.2-3.1Z"/>
+          </svg>
+        `
+      },
+      xrp: {
+        bg: "#111827",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <path d="M6 5c1.5 2.1 3.2 3.2 6 3.2S16.5 7.1 18 5"/>
+            <path d="M6 19c1.5-2.1 3.2-3.2 6-3.2s4.5 1.1 6 3.2"/>
+          </svg>
+        `
+      },
+      sol: {
+        bg: "#111827",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <path d="M5 6h14l-3 3H2L5 6Z"/>
+            <path d="M5 11h14l-3 3H2l3-3Z"/>
+            <path d="M5 16h14l-3 3H2l3-3Z"/>
+          </svg>
+        `
+      },
+      usdc: {
+        bg: "#2775ca",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M15.5 9.5c-.7-.7-1.8-1.1-3.5-1.1-1.8 0-3 .7-3 1.8 0 1.2 1.3 1.5 3 1.8 1.7.3 3 .7 3 2 0 1.2-1.2 1.9-3 1.9"/>
+            <path d="M12 5.5v13"/>
+          </svg>
+        `
+      },
+      doge: {
+        bg: "#c2a633",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M9 6v12h3.5a6 6 0 0 0 0-12H9Z"/>
+            <path d="M6 12h8"/>
+          </svg>
+        `
+      },
+      ada: {
+        bg: "#3154a6",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="2.2"/>
+            <circle cx="12" cy="5" r="1.2"/>
+            <circle cx="12" cy="19" r="1.2"/>
+            <circle cx="5" cy="12" r="1.2"/>
+            <circle cx="19" cy="12" r="1.2"/>
+            <circle cx="7" cy="7" r="1"/>
+            <circle cx="17" cy="7" r="1"/>
+            <circle cx="7" cy="17" r="1"/>
+            <circle cx="17" cy="17" r="1"/>
+          </svg>
+        `
+      },
+      avax: {
+        bg: "#e84142",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="m12 5 6.5 13h-3.1l-1.4-3H10l-1.4 3H5.5L12 5Z"/>
+            <path d="M11 12h2"/>
+          </svg>
+        `
+      },
+      link: {
+        bg: "#2a5ada",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m8 12 4-4 4 4-4 4-4-4Z"/>
+            <path d="M3.5 12 8 7.5M16 7.5l4.5 4.5M3.5 12 8 16.5M16 16.5l4.5-4.5"/>
+          </svg>
+        `
+      },
+      dot: {
+        bg: "#e6007a",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="8" r="3"/>
+            <circle cx="12" cy="16" r="3"/>
+            <path d="M12 11v2"/>
+          </svg>
+        `
+      },
+      trx: {
+        bg: "#ef0027",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4l16 3-7 13L4 4Z"/>
+            <path d="M4 4l9 3 7 0"/>
+            <path d="m13 7-1 13"/>
+          </svg>
+        `
+      },
+      shib: {
+        bg: "#f97316",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9c0-3 2-5 6-5s6 2 6 5v5c0 3-2 5-6 5s-6-2-6-5V9Z"/>
+            <path d="M9 11h.01M15 11h.01M9 15c1.8 1.4 4.2 1.4 6 0"/>
+          </svg>
+        `
+      },
+      ltc: {
+        bg: "#345d9d",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m10 5-2.5 14H17"/>
+            <path d="M7 13h8"/>
+            <path d="M11 5h4"/>
+          </svg>
+        `
+      },
+      bch: {
+        bg: "#0ac18e",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M9 7v10M9 7h4a2.5 2.5 0 0 1 0 5H9h4.5a2.5 2.5 0 0 1 0 5H9"/>
+          </svg>
+        `
+      },
+      sui: {
+        bg: "#4da2ff",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11Z"/>
+            <path d="M9 16c.8 1.2 1.8 1.8 3 1.8"/>
+          </svg>
+        `
+      },
+      ton: {
+        bg: "#0098ea",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m12 3 7 12H5L12 3Z"/>
+            <path d="M12 3v15"/>
+          </svg>
+        `
+      },
+      uni: {
+        bg: "#ff007a",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 8h8v8H8z"/>
+            <path d="M6 6h12M6 18h12"/>
+            <path d="M4 10v4M20 10v4"/>
+          </svg>
+        `
+      },
+      xlm: {
+        bg: "#111827",
+        color: "#fff",
+        icon: `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m5 5 14 14"/>
+            <path d="M5 19 19 5"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        `
+      }
+    };
+
+    function Icon({ name, size = 18, className = "" }) {
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      return (
+        <i
+          data-lucide={name}
+          className={className}
+          style={{ width: size, height: size }}
+        />
+      );
+    }
+
+    function Button({ children, onClick, variant = "primary", className = "", type = "button" }) {
+      const variants = {
+        primary: "bg-blue-600 text-white hover:bg-blue-700",
+        secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700",
+        ghost: "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
+        danger: "bg-rose-600 text-white hover:bg-rose-700",
+        success: "bg-emerald-600 text-white hover:bg-emerald-700",
+        outline: "border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      };
+
+      return (
+        <button
+          type={type}
+          onClick={onClick}
+          className={
+            "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition " +
+            variants[variant] +
+            " " +
+            className
+          }
+        >
+          {children}
+        </button>
+      );
+    }
+
+    function Card({ children, className = "" }) {
+      return (
+        <div className={
+          "rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 " +
+          className
+        }>
+          {children}
+        </div>
+      );
+    }
+
+    function Input({ label, value, onChange, placeholder, type = "text", suffix, min, step }) {
+      return (
+        <label className="block">
+          {label && (
+            <span className="mb-2 block text-sm font-medium text-slate-500 dark:text-slate-400">
+              {label}
+            </span>
+          )}
+
+          <div className="relative">
+            <input
+              type={type}
+              value={value}
+              onChange={onChange}
+              placeholder={placeholder}
+              min={min}
+              step={step}
+              className={
+                "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition " +
+                "focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 " +
+                "dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              }
+            />
+
+            {suffix && (
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                {suffix}
+              </span>
+            )}
+          </div>
+        </label>
+      );
+    }
+
+    function CoinIcon({ symbol, size = "md" }) {
+      const meta = coinMeta[symbol?.toLowerCase()] || {
+        bg: "#64748b",
+        color: "#fff",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>`
+      };
+
+      const sizes = {
+        sm: "w-9 h-9 rounded-xl",
+        md: "w-11 h-11 rounded-xl",
+        lg: "w-14 h-14 rounded-2xl"
+      };
+
+      return (
+        <div
+          className={"coin-icon " + sizes[size]}
+          style={{ background: meta.bg, color: meta.color }}
+          dangerouslySetInnerHTML={{ __html: meta.icon }}
+        />
+      );
+    }
+
+    function formatPrice(price) {
+      if (price >= 1000) {
+        return "$" + price.toLocaleString("en-US", {
+          maximumFractionDigits: 2
+        });
+      }
+
+      if (price >= 1) {
+        return "$" + price.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 4
+        });
+      }
+
+      return "$" + price.toLocaleString("en-US", {
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 8
+      });
+    }
+
+    function formatMoney(value) {
+      return Number(value || 0).toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2
+      });
+    }
+
+    function formatAmount(value) {
+      return Number(value || 0).toLocaleString("en-US", {
+        maximumFractionDigits: 8
+      });
+    }
+
+    function getCoinById(coins, id) {
+      return coins.find(c => c.id === id) || coins[0];
+    }
+
+    function normalizeCoin(item) {
+      return {
+        id: item.id,
+        symbol: item.symbol.toLowerCase(),
+        name: item.name,
+        price: item.current_price || 0,
+        change: item.price_change_percentage_24h || 0,
+        image: item.image,
+        sparkline: item.sparkline_in_7d?.price || []
+      };
+    }
+
+    function MiniChart({ positive = true }) {
+      const points = positive
+        ? "0,76 20,68 40,72 60,51 80,58 100,44 120,49 140,25 160,34 180,15 200,23 220,8"
+        : "0,18 20,25 40,16 60,38 80,31 100,49 120,43 140,62 160,54 180,72 200,63 220,83";
+
+      return (
+        <svg viewBox="0 0 220 90" className="h-full w-full">
+          <defs>
+            <linearGradient id={positive ? "greenGradient" : "redGradient"} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={positive ? "#10b981" : "#f43f5e"} stopOpacity=".24"/>
+              <stop offset="100%" stopColor={positive ? "#10b981" : "#f43f5e"} stopOpacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <polyline
+            points={points}
+            fill="none"
+            stroke={positive ? "#10b981" : "#f43f5e"}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          <polyline
+            points={"0,90 " + points + " 220,90"}
+            fill={`url(#${positive ? "greenGradient" : "redGradient"})`}
+            stroke="none"
+          />
+        </svg>
+      );
+    }
+
+    function CandlestickChart({ positive = true }) {
+      const candles = [
+        [58, 82, 44, 67, true],
+        [66, 75, 51, 61, false],
+        [78, 91, 63, 70, true],
+        [88, 71, 48, 55, true],
+        [99, 65, 42, 49, false],
+        [110, 61, 35, 44, true],
+        [121, 55, 30, 37, true],
+        [132, 68, 41, 58, false],
+        [143, 59, 32, 44, true],
+        [154, 51, 24, 36, true],
+        [165, 46, 20, 31, true],
+        [176, 57, 29, 42, false],
+        [187, 42, 17, 25, true],
+        [198, 36, 12, 20, true],
+        [209, 49, 20, 35, false]
+      ];
+
+      const up = "#10b981";
+      const down = "#f43f5e";
+
+      return (
+        <svg viewBox="0 0 230 100" className="h-full w-full">
+          {candles.map((c, index) => {
+            const [x, high, low, close, isUp] = c;
+            const open = isUp ? close + 10 : close - 10;
+            const top = Math.min(open, close);
+            const height = Math.abs(open - close);
+
+            return (
+              <g key={index}>
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={high}
+                  y2={low}
+                  stroke={isUp ? up : down}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+
+                <rect
+                  x={x - 4}
+                  y={top}
+                  width="8"
+                  height={Math.max(height, 5)}
+                  rx="1.5"
+                  fill={isUp ? up : down}
+                />
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    function Logo({ dark = false }) {
+      return (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+            <Icon name="bar-chart-3" size={22}/>
+          </div>
+
+          <span className={
+            "text-xl font-black tracking-tight " +
+            (dark ? "text-white" : "text-slate-900")
+          }>
+            Bin
+          </span>
+        </div>
+      );
+    }
+
+    function RiskWarning() {
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="flex items-start gap-3">
+            <Icon name="triangle-alert" size={20} className="mt-0.5 shrink-0"/>
+            <div>
+              <p className="font-semibold">Предупреждение о рисках</p>
+              <p className="mt-1 leading-6 opacity-90">
+                Криптовалюты отличаются высокой волатильностью. Цена может быстро меняться,
+                а торговля может привести к частичной или полной потере средств.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Footer() {
+      return (
+        <footer className="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+            <div>© 2026 Bin. Демонстрационный интерфейс криптовалютной платформы.</div>
+
+            <div className="flex flex-wrap gap-5">
+              <span className="cursor-pointer hover:text-slate-900 dark:hover:text-white">Условия</span>
+              <span className="cursor-pointer hover:text-slate-900 dark:hover:text-white">Конфиденциальность</span>
+              <span className="cursor-pointer hover:text-slate-900 dark:hover:text-white">Поддержка</span>
+            </div>
+          </div>
+        </footer>
+      );
+    }
+
+    function Landing({ onAuth }) {
+      return (
+        <div className="min-h-screen bg-slate-50 text-slate-900">
+          <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+              <Logo/>
+
+              <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
+                <a href="#markets" className="hover:text-blue-600">Рынки</a>
+                <a href="#features" className="hover:text-blue-600">Возможности</a>
+                <a href="#security" className="hover:text-blue-600">Безопасность</a>
+              </nav>
+
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => onAuth("login")}>
+                  Войти
+                </Button>
+
+                <Button onClick={() => onAuth("register")}>
+                  Создать аккаунт
+                </Button>
+              </div>
+            </div>
+          </header>
+
+          <main>
+            <section className="relative overflow-hidden">
+              <div className="absolute -left-40 top-20 h-96 w-96 rounded-full bg-blue-200/50 blur-3xl"/>
+              <div className="absolute -right-40 top-20 h-96 w-96 rounded-full bg-violet-200/50 blur-3xl"/>
+
+              <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-6 py-20 lg:grid-cols-2 lg:py-28">
+                <div>
+                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+                    <span className="h-2 w-2 rounded-full bg-blue-600"/>
+                    Криптовалютная платформа нового поколения
+                  </div>
+
+                  <h1 className="max-w-3xl text-5xl font-black leading-tight tracking-tight sm:text-6xl">
+                    Торгуйте криптовалютой
+                    <span className="gradient-text"> уверенно и удобно</span>
+                  </h1>
+
+                  <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+                    Следите за рынком, анализируйте котировки и управляйте цифровыми активами
+                    в одном современном интерфейсе.
+                  </p>
+
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    <Button onClick={() => onAuth("register")} className="px-6">
+                      Начать работу
+                      <Icon name="arrow-right" size={18}/>
+                    </Button>
+
+                    <Button variant="outline" onClick={() => onAuth("login")}>
+                      Открыть терминал
+                    </Button>
+                  </div>
+
+                  <div className="mt-10 grid max-w-xl grid-cols-3 gap-4">
+                    <div>
+                      <div className="text-2xl font-black">50+</div>
+                      <div className="mt-1 text-sm text-slate-500">Активов</div>
+                    </div>
+
+                    <div>
+                      <div className="text-2xl font-black">24/7</div>
+                      <div className="mt-1 text-sm text-slate-500">Доступ к рынку</div>
+                    </div>
+
+                    <div>
+                      <div className="text-2xl font-black">Live</div>
+                      <div className="mt-1 text-sm text-slate-500">Рыночные данные</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute -inset-6 rounded-[40px] bg-blue-500/10 blur-3xl"/>
+                  <Card className="relative overflow-hidden rounded-[28px] p-5 soft-shadow">
+                    <div className="mb-5 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-500">Обзор рынка</div>
+                        <div className="mt-1 text-2xl font-black">Криптовалюты</div>
+                      </div>
+
+                      <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                        Рынок открыт
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {FALLBACK_COINS.slice(0, 5).map(coin => (
+                        <div
+                          key={coin.id}
+                          className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <CoinIcon symbol={coin.symbol} size="sm"/>
+                            <div>
+                              <div className="font-bold">{coin.name}</div>
+                              <div className="text-xs uppercase text-slate-400">{coin.symbol}</div>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div className="font-bold">{formatPrice(coin.price)}</div>
+                            <div className="text-xs font-semibold text-emerald-600">
+                              +{coin.change.toFixed(2)}%
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-5 rounded-2xl bg-slate-950 p-5 text-white">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-400">Объём рынка</span>
+                        <span className="text-sm font-semibold text-emerald-400">+5.4%</span>
+                      </div>
+
+                      <div className="mt-2 text-3xl font-black">$2.6T</div>
+                      <div className="mt-3 h-20">
+                        <MiniChart positive/>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            </section>
+
+            <section id="features" className="mx-auto max-w-7xl px-6 py-20">
+              <div className="max-w-2xl">
+                <div className="text-sm font-bold uppercase tracking-widest text-blue-600">
+                  Возможности
+                </div>
+
+                <h2 className="mt-3 text-4xl font-black tracking-tight">
+                  Всё необходимое для работы с рынком
+                </h2>
+              </div>
+
+              <div className="mt-10 grid gap-5 md:grid-cols-3">
+                {[
+                  ["chart-candlestick", "Живые котировки", "Отслеживайте изменения стоимости популярных цифровых активов."],
+                  ["wallet", "Управление балансом", "Пополняйте виртуальный баланс и контролируйте активы в одном месте."],
+                  ["shield-check", "Контроль рисков", "Используйте понятные предупреждения и информацию о волатильности."]
+                ].map(([icon, title, text]) => (
+                  <Card key={title} className="p-6">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                      <Icon name={icon} size={24}/>
+                    </div>
+
+                    <h3 className="mt-5 text-xl font-bold">{title}</h3>
+                    <p className="mt-3 leading-7 text-slate-500">{text}</p>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            <section id="security" className="bg-slate-900 py-20 text-white">
+              <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2 lg:items-center">
+                <div>
+                  <div className="text-sm font-bold uppercase tracking-widest text-blue-400">
+                    Прозрачный интерфейс
+                  </div>
+
+                  <h2 className="mt-4 text-4xl font-black">
+                    Понимайте каждое действие
+                  </h2>
+
+                  <p className="mt-5 max-w-xl leading-8 text-slate-400">
+                    В терминале отображаются цена, количество, сумма сделки, комиссия,
+                    доступный баланс и история операций.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {[
+                    ["eye", "Понятные данные"],
+                    ["zap", "Быстрые операции"],
+                    ["lock", "Защита аккаунта"],
+                    ["activity", "Мониторинг рынка"]
+                  ].map(([icon, text]) => (
+                    <div key={text} className="rounded-2xl border border-slate-800 bg-slate-800/60 p-5">
+                      <Icon name={icon} size={24} className="text-blue-400"/>
+                      <div className="mt-4 font-semibold">{text}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </main>
+
+          <Footer/>
+        </div>
+      );
+    }
+
+    function Auth({ mode, onBack, onSuccess }) {
+      const [currentMode, setCurrentMode] = useState(mode);
+      const [email, setEmail] = useState("");
+      const [password, setPassword] = useState("");
+      const [username, setUsername] = useState("");
+      const [showPassword, setShowPassword] = useState(false);
+
+      function submit(e) {
+        e.preventDefault();
+        onSuccess();
+      }
+
+      return (
+        <div className="min-h-screen bg-slate-50">
+          <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-6 py-10">
+            <div className="grid w-full max-w-5xl overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 lg:grid-cols-2">
+              <div className="hidden bg-slate-950 p-12 text-white lg:block">
+                <Logo dark/>
+
+                <div className="mt-24">
+                  <div className="mb-5 inline-flex rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-bold text-blue-300">
+                    BIN TERMINAL
+                  </div>
+
+                  <h1 className="text-5xl font-black leading-tight">
+                    Ваш цифровой рынок — в одном месте.
+                  </h1>
+
+                  <p className="mt-6 leading-8 text-slate-400">
+                    Аналитика, котировки, управление балансом и сделки
+                    в едином интерфейсе.
+                  </p>
+                </div>
+
+                <div className="mt-16 rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Состояние системы</span>
+                    <span className="flex items-center gap-2 font-semibold text-emerald-400">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400"/>
+                      Работает
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-7 sm:p-12">
+                <button
+                  onClick={onBack}
+                  className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900"
+                >
+                  <Icon name="arrow-left" size={17}/>
+                  На главную
+                </button>
+
+                <div className="mb-8">
+                  <h2 className="text-3xl font-black">
+                    {currentMode === "login" ? "С возвращением" : "Создать аккаунт"}
+                  </h2>
+
+                  <p className="mt-3 text-slate-500">
+                    {currentMode === "login"
+                      ? "Войдите в свой аккаунт Bin."
+                      : "Заполните данные для доступа к терминалу."}
+                  </p>
+                </div>
+
+                <form onSubmit={submit} className="space-y-5">
+                  {currentMode === "register" && (
+                    <Input
+                      label="Имя пользователя"
+                      value={username}
+                      onChange={e => setUsername(e.target.value)}
+                      placeholder="Введите имя"
+                    />
+                  )}
+
+                  <Input
+                    label="Электронная почта"
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-500">
+                      Пароль
+                    </span>
+
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        placeholder="Введите пароль"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
+                      >
+                        <Icon name={showPassword ? "eye-off" : "eye"} size={18}/>
+                      </button>
+                    </div>
+                  </label>
+
+                  {currentMode === "login" && (
+                    <div className="flex items-center justify-between text-sm">
+                      <label className="flex items-center gap-2 text-slate-500">
+                        <input type="checkbox" className="rounded border-slate-300"/>
+                        Запомнить меня
+                      </label>
+
+                      <button type="button" className="font-semibold text-blue-600">
+                        Забыли пароль?
+                      </button>
+                    </div>
+                  )}
+
+                  <Button type="submit" className="w-full">
+                    {currentMode === "login" ? "Войти в терминал" : "Создать аккаунт"}
+                    <Icon name="arrow-right" size={18}/>
+                  </Button>
+                </form>
+
+                <div className="mt-8 text-center text-sm text-slate-500">
+                  {currentMode === "login"
+                    ? "Нет аккаунта?"
+                    : "Уже есть аккаунт?"}
+
+                  <button
+                    onClick={() => setCurrentMode(currentMode === "login" ? "register" : "login")}
+                    className="ml-2 font-bold text-blue-600 hover:text-blue-700"
+                  >
+                    {currentMode === "login" ? "Зарегистрироваться" : "Войти"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Sidebar({ page, setPage, onLogout }) {
+      const items = [
+        ["dashboard", "Обзор", "layout-dashboard"],
+        ["trade", "Терминал", "chart-candlestick"],
+        ["finance", "Финансы", "wallet"],
+        ["history", "История", "history"],
+        ["profile", "Профиль", "user"],
+        ["support", "Поддержка", "life-buoy"]
+      ];
+
+      return (
+        <aside className="hidden w-64 shrink-0 border-r border-slate-800 bg-slate-950 p-5 lg:block">
+          <Logo dark/>
+
+          <div className="mt-10">
+            <div className="mb-3 px-3 text-xs font-bold uppercase tracking-widest text-slate-600">
+              Рабочее пространство
+            </div>
+
+            <nav className="space-y-1">
+              {items.map(([id, label, icon]) => (
+                <button
+                  key={id}
+                  onClick={() => setPage(id)}
+                  className={
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition " +
+                    (page === id
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-400 hover:bg-slate-900 hover:text-white")
+                  }
+                >
+                  <Icon name={icon} size={18}/>
+                  {label}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="mt-10 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-sm font-black text-white">
+                B
+              </div>
+
+              <div className="min-w-0">
+                <div className="truncate text-sm font-bold text-white">[username]</div>
+                <div className="truncate text-xs text-slate-500">[user_email]</div>
+              </div>
+            </div>
+
+            <button
+              onClick={onLogout}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+            >
+              <Icon name="log-out" size={16}/>
+              Выйти
+            </button>
+          </div>
+        </aside>
+      );
+    }
+
+    function TopBar({ page, onTheme, dark, setPage }) {
+      const titles = {
+        dashboard: ["Обзор", "Сводка рынка и активов"],
+        trade: ["Терминал", "Торговля цифровыми активами"],
+        finance: ["Финансы", "Баланс и операции пополнения"],
+        history: ["История", "Ваши операции"],
+        profile: ["Профиль", "Настройки аккаунта"],
+        support: ["Поддержка", "Помощь и ответы на вопросы"]
+      };
+
+      return (
+        <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 px-5 py-4 backdrop-blur-xl md:px-8">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-black text-white">{titles[page]?.[0]}</h1>
+              <p className="mt-1 hidden text-sm text-slate-500 sm:block">{titles[page]?.[1]}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage("finance")}
+                className="hidden items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 sm:flex"
+              >
+                <Icon name="wallet" size={16}/>
+                Баланс
+              </button>
+
+              <button
+                onClick={onTheme}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
+                title="Переключить тему"
+              >
+                <Icon name={dark ? "sun" : "moon"} size={18}/>
+              </button>
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-sm font-black text-white">
+                B
+              </div>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    function MobileNav({ page, setPage }) {
+      const items = [
+        ["dashboard", "Обзор", "layout-dashboard"],
+        ["trade", "Терминал", "chart-candlestick"],
+        ["finance", "Финансы", "wallet"],
+        ["history", "История", "history"],
+        ["profile", "Профиль", "user"]
+      ];
+
+      return (
+        <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-800 bg-slate-950/95 px-2 py-2 backdrop-blur-xl lg:hidden">
+          <div className="grid grid-cols-5 gap-1">
+            {items.map(([id, label, icon]) => (
+              <button
+                key={id}
+                onClick={() => setPage(id)}
+                className={
+                  "flex flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-semibold " +
+                  (page === id ? "bg-blue-600 text-white" : "text-slate-500")
+                }
+              >
+                <Icon name={icon} size={18}/>
+                {label}
+              </button>
+            ))}
+          </div>
+        </nav>
+      );
+    }
+
+    function DarkLayout({ children, page, setPage, onLogout, dark, onTheme }) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white">
+          <div className="flex min-h-screen">
+            <Sidebar page={page} setPage={setPage} onLogout={onLogout}/>
+
+            <div className="min-w-0 flex-1">
+              <TopBar page={page} onTheme={onTheme} dark={dark} setPage={setPage}/>
+
+              <main className="min-h-[calc(100vh-80px)] bg-slate-950 px-5 py-6 pb-24 md:px-8 lg:pb-8">
+                {children}
+              </main>
+            </div>
+          </div>
+
+          <MobileNav page={page} setPage={setPage}/>
+        </div>
+      );
+    }
+
+    function MarketTicker({ coins, onSelect }) {
+      return (
+        <div className="mobile-scroll flex gap-3 overflow-x-auto pb-2">
+          {coins.slice(0, 10).map(coin => (
+            <button
+              key={coin.id}
+              onClick={() => onSelect(coin.id)}
+              className="min-w-[190px] rounded-2xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-blue-500"
+            >
+              <div className="flex items-center gap-3">
+                <CoinIcon symbol={coin.symbol} size="sm"/>
+
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-white">{coin.name}</div>
+                  <div className="text-xs uppercase text-slate-500">{coin.symbol}</div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-end justify-between gap-3">
+                <div>
+                  <div className="font-black">{formatPrice(coin.price)}</div>
+                  <div className={
+                    "mt-1 text-xs font-bold " +
+                    (coin.change >= 0 ? "text-emerald-400" : "text-rose-400")
+                  }>
+                    {coin.change >= 0 ? "+" : ""}{coin.change.toFixed(2)}%
+                  </div>
+                </div>
+
+                <div className="h-10 w-20">
+                  <MiniChart positive={coin.change >= 0}/>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    function Dashboard({ coins, setPage, onSelectCoin }) {
+      const topCoins = coins.slice(0, 8);
+
+      return (
+        <div className="mx-auto max-w-7xl animate-fade">
+          <div className="mb-7">
+            <h2 className="text-3xl font-black text-white">Добрый день, [username]</h2>
+            <p className="mt-2 text-slate-500">Вот что происходит с рынком сегодня.</p>
+          </div>
+
+          <MarketTicker coins={coins} onSelect={onSelectCoin}/>
+
+          <div className="mt-7 grid gap-5 md:grid-cols-3">
+            <Card className="border-slate-800 bg-slate-900 p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-500">Баланс</span>
+                <div className="rounded-xl bg-blue-500/10 p-2 text-blue-400">
+                  <Icon name="wallet" size={18}/>
+                </div>
+              </div>
+
+              <div className="mt-5 text-3xl font-black text-white">$12,480.00</div>
+              <div className="mt-2 text-sm text-slate-500">Доступно для операций</div>
+            </Card>
+
+            <Card className="border-slate-800 bg-slate-900 p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-500">Стоимость активов</span>
+                <div className="rounded-xl bg-violet-500/10 p-2 text-violet-400">
+                  <Icon name="coins" size={18}/>
+                </div>
+              </div>
+
+              <div className="mt-5 text-3xl font-black text-white">$8,740.52</div>
+              <div className="mt-2 text-sm text-emerald-400">+4.82% за 24 часа</div>
+            </Card>
+
+            <Card className="border-slate-800 bg-slate-900 p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-500">Прибыль/убыток</span>
+                <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-400">
+                  <Icon name="trending-up" size={18}/>
+                </div>
+              </div>
+
+              <div className="mt-5 text-3xl font-black text-emerald-400">+$640.80</div>
+              <div className="mt-2 text-sm text-slate-500">За текущий период</div>
+            </Card>
+          </div>
+
+          <div className="mt-7 grid gap-5 xl:grid-cols-[1.5fr_1fr]">
+            <Card className="border-slate-800 bg-slate-900 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black">Динамика портфеля</h3>
+                  <p className="mt-1 text-sm text-slate-500">Последние 7 дней</p>
+                </div>
+
+                <button
+                  onClick={() => setPage("trade")}
+                  className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                >
+                  Открыть терминал
+                </button>
+              </div>
+
+              <div className="chart-grid mt-6 h-64 rounded-2xl p-3">
+                <svg viewBox="0 0 700 260" className="h-full w-full">
+                  <defs>
+                    <linearGradient id="portfolioFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity=".3"/>
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
+                    </linearGradient>
+                  </defs>
+
+                  <polyline
+                    points="0,210 60,190 120,198 180,150 240,166 300,125 360,145 420,92 480,112 540,70 600,90 700,35"
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  <polyline
+                    points="0,260 0,210 60,190 120,198 180,150 240,166 300,125 360,145 420,92 480,112 540,70 600,90 700,35 700,260"
+                    fill="url(#portfolioFill)"
+                    stroke="none"
+                  />
+                </svg>
+              </div>
+            </Card>
+
+            <Card className="border-slate-800 bg-slate-900 p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-black">Популярные активы</h3>
+                <button
+                  onClick={() => setPage("trade")}
+                  className="text-sm font-bold text-blue-400"
+                >
+                  Все
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {topCoins.slice(0, 6).map(coin => (
+                  <button
+                    key={coin.id}
+                    onClick={() => onSelectCoin(coin.id)}
+                    className="flex w-full items-center justify-between rounded-2xl border border-slate-800 p-3 text-left hover:bg-slate-800"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CoinIcon symbol={coin.symbol} size="sm"/>
+                      <div>
+                        <div className="font-bold">{coin.name}</div>
+                        <div className="text-xs uppercase text-slate-500">{coin.symbol}</div>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-sm font-bold">{formatPrice(coin.price)}</div>
+                      <div className={
+                        "text-xs font-semibold " +
+                        (coin.change >= 0 ? "text-emerald-400" : "text-rose-400")
+                      }>
+                        {coin.change >= 0 ? "+" : ""}{coin.change.toFixed(2)}%
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          <div className="mt-7">
+            <RiskWarning/>
+          </div>
+        </div>
+      );
+    }
+
+    function Trade({ coins, selectedCoinId, setSelectedCoinId, balance, setBalance }) {
+      const selected = getCoinById(coins, selectedCoinId);
+
+      const [orderType, setOrderType] = useState("market");
+      const [side, setSide] = useState("buy");
+      const [amount, setAmount] = useState("");
+      const [price, setPrice] = useState(selected.price);
+      const [message, setMessage] = useState("");
+
+      useEffect(() => {
+        setPrice(selected.price);
+      }, [selected.id, selected.price]);
+
+      const numericAmount = Number(amount) || 0;
+      const numericPrice = Number(price) || selected.price;
+      const total = numericAmount * numericPrice;
+      const fee = total * 0.001;
+      const finalTotal = side === "buy" ? total + fee : total - fee;
+
+      const quantity = side === "buy"
+        ? numericAmount / numericPrice
+        : numericAmount;
+
+      function submitOrder() {
+        if (!numericAmount || numericAmount <= 0) {
+          setMessage("Введите сумму сделки.");
+          return;
+        }
+
+        if (side === "buy" && finalTotal > balance) {
+          setMessage("Недостаточно средств для покупки.");
+          return;
+        }
+
+        setMessage(
+          side === "buy"
+            ? `Заявка на покупку ${selected.symbol.toUpperCase()} создана.`
+            : `Заявка на продажу ${selected.symbol.toUpperCase()} создана.`
+        );
+      }
+
+      return (
+        <div className="mx-auto max-w-7xl animate-fade">
+          <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <h2 className="text-3xl font-black">Торговый терминал</h2>
+              <p className="mt-2 text-slate-500">
+                Выберите актив и укажите точную сумму сделки вручную.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm">
+              Баланс: <span className="font-black text-white">{formatMoney(balance)}</span>
+            </div>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[1.45fr_1fr]">
+            <div className="space-y-5">
+              <Card className="border-slate-800 bg-slate-900 p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <CoinIcon symbol={selected.symbol} size="lg"/>
+
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black">{selected.name}</h3>
+                        <span className="rounded-lg bg-slate-800 px-2 py-1 text-xs font-bold uppercase text-slate-400">
+                          {selected.symbol}
+                        </span>
+                      </div>
+
+                      <div className="mt-1 text-sm text-slate-500">Рыночная цена в реальном времени</div>
+                    </div>
+                  </div>
+
+                  <div className="text-left sm:text-right">
+                    <div className="text-3xl font-black">{formatPrice(selected.price)}</div>
+                    <div className={
+                      "mt-1 text-sm font-bold " +
+                      (selected.change >= 0 ? "text-emerald-400" : "text-rose-400")
+                    }>
+                      {selected.change >= 0 ? "+" : ""}{selected.change.toFixed(2)}% за 24ч
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 h-80 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                  <div className="flex h-full items-center justify-center">
+                    <CandlestickChart positive={selected.change >= 0}/>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {["1ч", "4ч", "1д", "1н", "1м"].map((range, index) => (
+                    <button
+                      key={range}
+                      className={
+                        "rounded-xl px-4 py-2 text-xs font-bold " +
+                        (index === 2
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-800 text-slate-400 hover:bg-slate-700")
+                      }
+                    >
+                      {range}
+                    </button>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-black">Доступные криптовалюты</h3>
+                  <span className="text-sm text-slate-500">{coins.length} активов</span>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {coins.map(coin => (
+                    <button
+                      key={coin.id}
+                      onClick={() => {
+                        setSelectedCoinId(coin.id);
+                        setMessage("");
+                      }}
+                      className={
+                        "flex items-center gap-3 rounded-2xl border p-3 text-left transition " +
+                        (selected.id === coin.id
+                          ? "border-blue-500 bg-blue-500/10"
+                          : "border-slate-800 hover:bg-slate-800")
+                      }
+                    >
+                      <CoinIcon symbol={coin.symbol} size="sm"/>
+
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold">{coin.name}</div>
+                        <div className="text-xs uppercase text-slate-500">
+                          {coin.symbol}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <div>
+              <Card className="sticky top-24 border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-black">Новая сделка</h3>
+
+                  <div className="rounded-xl bg-slate-800 p-2 text-slate-400">
+                    <Icon name="settings-2" size={18}/>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-2 rounded-xl bg-slate-950 p-1">
+                  <button
+                    onClick={() => setSide("buy")}
+                    className={
+                      "rounded-lg py-3 text-sm font-bold transition " +
+                      (side === "buy"
+                        ? "bg-emerald-600 text-white"
+                        : "text-slate-500 hover:text-white")
+                    }
+                  >
+                    Купить
+                  </button>
+
+                  <button
+                    onClick={() => setSide("sell")}
+                    className={
+                      "rounded-lg py-3 text-sm font-bold transition " +
+                      (side === "sell"
+                        ? "bg-rose-600 text-white"
+                        : "text-slate-500 hover:text-white")
+                    }
+                  >
+                    Продать
+                  </button>
+                </div>
+
+                <div className="mt-6">
+                  <label className="mb-2 block text-sm font-semibold text-slate-400">
+                    Тип сделки
+                  </label>
+
+                  <select
+                    value={orderType}
+                    onChange={e => setOrderType(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-semibold text-white outline-none"
+                  >
+                    <option value="market">Рыночная</option>
+                    <option value="limit">Лимитная</option>
+                  </select>
+                </div>
+
+                {orderType === "limit" && (
+                  <div className="mt-4">
+                    <Input
+                      label="Цена за единицу"
+                      type="number"
+                      value={price}
+                      onChange={e => setPrice(e.target.value)}
+                      min="0"
+                      step="any"
+                      suffix="USD"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <Input
+                    label="Сумма сделки"
+                    type="number"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    placeholder="Введите сумму вручную"
+                    min="0"
+                    step="any"
+                    suffix="USD"
+                  />
+                </div>
+
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  {[25, 50, 100, 250].map(value => (
+                    <button
+                      key={value}
+                      onClick={() => setAmount(String(value))}
+                      className="rounded-xl border border-slate-700 py-2 text-xs font-bold text-slate-400 hover:border-blue-500 hover:text-white"
+                    >
+                      ${value}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Цена</span>
+                    <span className="font-semibold text-white">{formatPrice(numericPrice)}</span>
+                  </div>
+
+                  <div className="mt-3 flex justify-between text-sm">
+                    <span className="text-slate-500">Количество</span>
+                    <span className="font-semibold text-white">{formatAmount(quantity)} {selected.symbol.toUpperCase()}</span>
+                  </div>
+
+                  <div className="mt-3 flex justify-between text-sm">
+                    <span className="text-slate-500">Комиссия</span>
+                    <span className="font-semibold text-white">{formatMoney(fee)}</span>
+                  </div>
+
+                  <div className="my-4 border-t border-slate-800"/>
+
+                  <div className="flex justify-between">
+                    <span className="font-bold text-slate-300">Итого</span>
+                    <span className="text-lg font-black text-white">{formatMoney(finalTotal)}</span>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={submitOrder}
+                  variant={side === "buy" ? "success" : "danger"}
+                  className="mt-5 w-full"
+                >
+                  {side === "buy" ? "Купить" : "Продать"} {selected.symbol.toUpperCase()}
+                </Button>
+
+                {message && (
+                  <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/10 p-3 text-sm text-blue-300">
+                    {message}
+                  </div>
+                )}
+
+                <p className="mt-4 text-xs leading-5 text-slate-500">
+                  Демо-режим: операция не отправляется на реальную биржу.
+                  Перед использованием реальных средств требуется подключение торгового API.
+                </p>
+              </Card>
+            </div>
+          </div>
+
+          <div className="mt-7">
+            <RiskWarning/>
+          </div>
+        </div>
+      );
+    }
+
+    function Finance({ balance, setBalance }) {
+      const [amount, setAmount] = useState("");
+      const [method, setMethod] = useState("visa");
+      const [message, setMessage] = useState("");
+
+      function deposit() {
+        const value = Number(amount);
+
+        if (!value || value < 10) {
+          setMessage("Минимальная сумма пополнения — $10.");
+          return;
+        }
+
+        setBalance(prev => prev + value);
+        setAmount("");
+        setMessage(`Баланс пополнен на ${formatMoney(value)}.`);
+      }
+
+      return (
+        <div className="mx-auto max-w-5xl animate-fade">
+          <div className="mb-7">
+            <h2 className="text-3xl font-black">Пополнение баланса</h2>
+            <p className="mt-2 text-slate-500">
+              Выберите способ оплаты и укажите сумму вручную.
+            </p>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
+            <Card className="border-slate-800 bg-slate-900 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-slate-500">Текущий баланс</div>
+                  <div className="mt-2 text-3xl font-black">{formatMoney(balance)}</div>
+                </div>
+
+                <div className="rounded-2xl bg-blue-500/10 p-4 text-blue-400">
+                  <Icon name="wallet" size={28}/>
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <div className="mb-3 text-sm font-bold text-slate-400">
+                  Способ оплаты
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["visa", "VISA", "credit-card"],
+                    ["mastercard", "Mastercard", "credit-card"],
+                    ["mir", "МИР", "landmark"]
+                  ].map(([id, label, icon]) => (
+                    <button
+                      key={id}
+                      onClick={() => setMethod(id)}
+                      className={
+                        "rounded-2xl border p-4 text-left transition " +
+                        (method === id
+                          ? "border-blue-500 bg-blue-500/10"
+                          : "border-slate-800 hover:bg-slate-800")
+                      }
+                    >
+                      <Icon name={icon} size={24} className={method === id ? "text-blue-400" : "text-slate-400"}/>
+                      <div className="mt-3 text-sm font-bold">{label}</div>
+                      <div className="mt-1 text-xs text-slate-500">Банковская карта</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-7">
+                <Input
+                  label="Сумма пополнения"
+                  type="number"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  placeholder="Введите сумму"
+                  min="10"
+                  step="0.01"
+                  suffix="USD"
+                />
+              </div>
+
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {[50, 100, 250, 500].map(value => (
+                  <button
+                    key={value}
+                    onClick={() => setAmount(String(value))}
+                    className="rounded-xl border border-slate-700 py-3 text-sm font-bold text-slate-400 hover:border-blue-500 hover:text-white"
+                  >
+                    ${value}
+                  </button>
+                ))}
+              </div>
+
+              <Button onClick={deposit} className="mt-6 w-full">
+                Пополнить баланс
+                <Icon name="plus-circle" size={18}/>
+              </Button>
+
+              {message && (
+                <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/10 p-3 text-sm text-blue-300">
+                  {message}
+                </div>
+              )}
+
+              <p className="mt-5 text-xs leading-5 text-slate-500">
+                Демо-пополнение. В настоящем приложении платёж проходит через защищённый
+                платёжный провайдер.
+              </p>
+            </Card>
+
+            <div className="space-y-5">
+              <Card className="border-slate-800 bg-slate-900 p-6">
+                <h3 className="text-lg font-black">Как это работает</h3>
+
+                <div className="mt-5 space-y-5">
+                  {[
+                    ["01", "Выберите способ оплаты", "Поддерживаются основные банковские карты."],
+                    ["02", "Введите сумму", "Можно указать любую сумму вручную или выбрать быстрый вариант."],
+                    ["03", "Подтвердите операцию", "Средства будут отражены на балансе после обработки платежа."]
+                  ].map(([num, title, text]) => (
+                    <div key={num} className="flex gap-4">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-xs font-black">
+                        {num}
+                      </div>
+
+                      <div>
+                        <div className="font-bold">{title}</div>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">{text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="border-slate-800 bg-slate-900 p-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-emerald-500/10 p-3 text-emerald-400">
+                    <Icon name="shield-check" size={22}/>
+                  </div>
+
+                  <div>
+                    <h3 className="font-black">Безопасность платежей</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Данные карты не сохраняются в демо-интерфейсе.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function History() {
+      const records = [
+        ["Покупка BTC", "BTC", "$250.00", "Сегодня, 12:42", "Успешно", "emerald"],
+        ["Покупка ETH", "ETH", "$500.00", "Вчера, 18:10", "Успешно", "emerald"],
+        ["Пополнение", "USD", "$1,000.00", "18 сент. 2026", "Завершено", "blue"],
+        ["Продажа SOL", "SOL", "$180.00", "17 сент. 2026", "Успешно", "rose"]
+      ];
+
+      return (
+        <div className="mx-auto max-w-7xl animate-fade">
+          <div className="mb-7">
+            <h2 className="text-3xl font-black">История операций</h2>
+            <p className="mt-2 text-slate-500">Последние действия в аккаунте.</p>
+          </div>
+
+          <Card className="overflow-hidden border-slate-800 bg-slate-900">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-left">
+                <thead className="border-b border-slate-800 bg-slate-950">
+                  <tr className="text-xs uppercase tracking-wider text-slate-500">
+                    <th className="px-5 py-4">Операция</th>
+                    <th className="px-5 py-4">Актив</th>
+                    <th className="px-5 py-4">Сумма</th>
+                    <th className="px-5 py-4">Дата</th>
+                    <th className="px-5 py-4">Статус</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {records.map(([operation, asset, sum, date, status, color]) => (
+                    <tr key={operation + date} className="border-b border-slate-800 last:border-0">
+                      <td className="px-5 py-5 font-semibold">{operation}</td>
+                      <td className="px-5 py-5 text-slate-400">{asset}</td>
+                      <td className="px-5 py-5 font-bold">{sum}</td>
+                      <td className="px-5 py-5 text-sm text-slate-500">{date}</td>
+                      <td className="px-5 py-5">
+                        <span className={
+                          "rounded-lg px-2.5 py-1 text-xs font-bold " +
+                          (color === "emerald"
+                            ? "bg-emerald-500/10 text-emerald-400"
+                            : color === "rose"
+                              ? "bg-rose-500/10 text-rose-400"
+                              : "bg-blue-500/10 text-blue-400")
+                        }>
+                          {status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    function Profile() {
+      const [notifications, setNotifications] = useState(true);
+      const [twoFactor, setTwoFactor] = useState(false);
+
+      return (
+        <div className="mx-auto max-w-3xl animate-fade">
+          <div className="mb-7">
+            <h2 className="text-3xl font-black">Профиль</h2>
+            <p className="mt-2 text-slate-500">Настройки аккаунта и безопасности.</p>
+          </div>
+
+          <div className="space-y-5">
+            <Card className="border-slate-800 bg-slate-900 p-6">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black">
+                  B
+                </div>
+
+                <div>
+                  <h3 className="text-xl font-black">[username]</h3>
+                  <p className="mt-1 text-sm text-slate-500">[user_email]</p>
+                </div>
+              </div>
+
+              <div className="mt-7 grid gap-4 sm:grid-cols-2">
+                <Input label="Имя пользователя" value="[username]" onChange={() => {}}/>
+                <Input label="Электронная почта" value="[user_email]" onChange={() => {}}/>
+              </div>
+            </Card>
+
+            <Card className="border-slate-800 bg-slate-900 p-6">
+              <h3 className="text-lg font-black">Настройки безопасности</h3>
+
+              <div className="mt-5 space-y-4">
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 p-4">
+                  <div>
+                    <div className="font-bold">Двухфакторная аутентификация</div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      Дополнительная защита аккаунта.
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setTwoFactor(!twoFactor)}
+                    className={
+                      "relative h-7 w-12 rounded-full transition " +
+                      (twoFactor ? "bg-blue-600" : "bg-slate-700")
+                    }
+                  >
+                    <span className={
+                      "absolute top-1 h-5 w-5 rounded-full bg-white transition " +
+                      (twoFactor ? "left-6" : "left-1")
+                    }/>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 p-4">
+                  <div>
+                    <div className="font-bold">Уведомления</div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      Сообщения о сделках и изменениях рынка.
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setNotifications(!notifications)}
+                    className={
+                      "relative h-7 w-12 rounded-full transition " +
+                      (notifications ? "bg-blue-600" : "bg-slate-700")
+                    }
+                  >
+                    <span className={
+                      "absolute top-1 h-5 w-5 rounded-full bg-white transition " +
+                      (notifications ? "left-6" : "left-1")
+                    }/>
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            <RiskWarning/>
+          </div>
+        </div>
+      );
+    }
+
+    function Support() {
+      const [question, setQuestion] = useState("");
+      const [sent, setSent] = useState(false);
+
+      return (
+        <div className="mx-auto max-w-4xl animate-fade">
+          <div className="mb-7">
+            <h2 className="text-3xl font-black">Поддержка</h2>
+            <p className="mt-2 text-slate-500">Ответы на вопросы и связь с командой.</p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            {[
+              ["book-open", "Центр знаний", "Инструкции по терминалу, балансу и безопасности."],
+              ["message-circle", "Связаться с нами", "Опишите вопрос, и команда поддержки ответит вам."]
+            ].map(([icon, title, text]) => (
+              <Card key={title} className="border-slate-800 bg-slate-900 p-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-400">
+                  <Icon name={icon} size={24}/>
+                </div>
+
+                <h3 className="mt-5 text-xl font-black">{title}</h3>
+                <p className="mt-3 leading-7 text-slate-500">{text}</p>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="mt-5 border-slate-800 bg-slate-900 p-6">
+            <h3 className="text-xl font-black">Задать вопрос</h3>
+
+            <textarea
+              value={question}
+              onChange={e => setQuestion(e.target.value)}
+              placeholder="Напишите ваш вопрос..."
+              rows="6"
+              className="mt-5 w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 p-4 text-sm text-white outline-none focus:border-blue-500"
+            />
+
+            <Button
+              onClick={() => {
+                setSent(true);
+                setQuestion("");
+              }}
+              className="mt-4"
+            >
+              Отправить сообщение
+              <Icon name="send" size={17}/>
+            </Button>
+
+            {sent && (
+              <div className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-400">
+                Сообщение отправлено в демо-режиме.
+              </div>
+            )}
+          </Card>
+        </div>
+      );
+    }
+
+    function App() {
+      const [screen, setScreen] = useState("landing");
+      const [authMode, setAuthMode] = useState("login");
+      const [page, setPage] = useState("dashboard");
+      const [dark, setDark] = useState(true);
+      const [coins, setCoins] = useState(FALLBACK_COINS);
+      const [selectedCoinId, setSelectedCoinId] = useState("bitcoin");
+      const [balance, setBalance] = useState(12480);
+
+      useEffect(() => {
+        document.documentElement.classList.toggle("dark", dark);
+      }, [dark]);
+
+      useEffect(() => {
+        let active = true;
+
+        async function loadCoins() {
+          try {
+            const response = await fetch(API_URL);
+
+            if (!response.ok) {
+              throw new Error("Market API error");
+            }
+
+            const data = await response.json();
+
+            if (active && Array.isArray(data) && data.length) {
+              const normalized = data.map(normalizeCoin);
+              setCoins(normalized);
+            }
+          } catch (error) {
+            console.warn("Используются резервные котировки:", error);
+          }
+        }
+
+        loadCoins();
+
+        const interval = setInterval(loadCoins, 60000);
+
+        return () => {
+          active = false;
+          clearInterval(interval);
+        };
+      }, []);
+
+      function openAuth(mode) {
+        setAuthMode(mode);
+        setScreen("auth");
+      }
+
+      function openTerminal() {
+        setScreen("app");
+        setPage("trade");
+      }
+
+      if (screen === "landing") {
+        return <Landing onAuth={openAuth}/>;
+      }
+
+      if (screen === "auth") {
+        return (
+          <Auth
+            mode={authMode}
+            onBack={() => setScreen("landing")}
+            onSuccess={() => setScreen("app")}
+          />
+        );
+      }
+
+      return (
+        <DarkLayout
+          page={page}
+          setPage={setPage}
+          onLogout={() => setScreen("landing")}
+          dark={dark}
+          onTheme={() => setDark(!dark)}
+        >
+          {page === "dashboard" && (
+            <Dashboard
+              coins={coins}
+              setPage={setPage}
+              onSelectCoin={(id) => {
+                setSelectedCoinId(id);
+                setPage("trade");
+              }}
+            />
+          )}
+
+          {page === "trade" && (
+            <Trade
+              coins={coins}
+              selectedCoinId={selectedCoinId}
+              setSelectedCoinId={setSelectedCoinId}
+              balance={balance}
+              setBalance={setBalance}
+            />
+          )}
+
+          {page === "finance" && (
+            <Finance balance={balance} setBalance={setBalance}/>
+          )}
+
+          {page === "history" && <History/>}
+
+          {page === "profile" && <Profile/>}
+
+          {page === "support" && <Support/>}
+        </DarkLayout>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
